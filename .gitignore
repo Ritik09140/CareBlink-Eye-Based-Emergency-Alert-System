@@ -1,0 +1,25 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Environment variables
+.env
+
+# Databases
+*.db
+careblink.db
+careblink.db-journal
+
+# Recorded alert videos
+all records/
+
+# Virtual environment
+venv/
+.venv/
+env/
+ENV/
+
+# VS Code settings
+.vscode/settings.json

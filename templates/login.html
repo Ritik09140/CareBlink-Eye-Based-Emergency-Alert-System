@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Doctor Login - CareBlink Portal</title>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- FontAwesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Stylesheets -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body class="login-body">
+    <!-- Floating Particles Background Overlay -->
+    <div class="particles-container">
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+    </div>
+
+    <div class="login-wrapper">
+        <div class="login-card">
+            <div class="brand-section">
+                <!-- Animated CareBlink Logo (Eye + Medical Cross) -->
+                <div class="careblink-logo-wrapper" style="margin-bottom: 18px;">
+                    <span class="logo-eye"><i class="fa-solid fa-eye"></i></span>
+                    <span class="logo-cross"><i class="fa-solid fa-plus"></i></span>
+                </div>
+                <h1>Care<span>Blink</span></h1>
+                <p>Patient Emergency Monitoring System</p>
+            </div>
+            
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="alert-box alert-{{ category }}">
+                            <i class="fa-solid fa-triangle-exclamation"></i>
+                            <span>{{ message }}</span>
+                        </div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+            <div class="auth-tabs">
+                <button class="auth-tab active" id="tab-login">Login</button>
+                <button class="auth-tab" id="tab-register">Register</button>
+            </div>
+
+            <!-- Login Form -->
+            <form action="{{ url_for('login') }}" method="POST" class="login-form" id="login-form">
+                <div class="input-group">
+                    <i class="fa-solid fa-phone input-icon"></i>
+                    <input type="text" id="mobile_no" name="mobile_no" placeholder="Mobile Number or Username" required autocomplete="off">
+                </div>
+                
+                <div class="input-group">
+                    <i class="fa-solid fa-lock input-icon"></i>
+                    <input type="password" id="password" name="password" placeholder="Password" required>
+                </div>
+                
+                <button type="submit" class="btn btn-primary btn-block">
+                    <span>Access Portal</span>
+                    <i class="fa-solid fa-arrow-right-to-bracket"></i>
+                </button>
+            </form>
+
+            <!-- Register Form -->
+            <form action="{{ url_for('register') }}" method="POST" class="login-form hidden" id="register-form">
+                <div class="input-group">
+                    <i class="fa-solid fa-hospital input-icon"></i>
+                    <input type="text" id="reg-hospital" name="hospital_name" placeholder="Hospital Name" required autocomplete="off">
+                </div>
+
+                <div class="input-group">
+                    <i class="fa-solid fa-map-location-dot input-icon"></i>
+                    <input type="text" id="reg-state" name="state" placeholder="State/Region" required autocomplete="off">
+                </div>
+
+                <div class="input-group">
+                    <i class="fa-solid fa-phone input-icon"></i>
+                    <input type="text" id="reg-mobile" name="mobile_no" placeholder="Mobile Number" required autocomplete="off">
+                </div>
+                
+                <div class="input-group">
+                    <i class="fa-solid fa-lock input-icon"></i>
+                    <input type="password" id="reg-password" name="password" placeholder="Password" required>
+                </div>
+                
+                <button type="submit" class="btn btn-primary btn-block">
+                    <span>Register Hospital</span>
+                    <i class="fa-solid fa-user-plus"></i>
+                </button>
+            </form>
+
+            <script>
+                document.addEventListener('DOMContentLoaded', () => {
+                    const tabLogin = document.getElementById('tab-login');
+                    const tabRegister = document.getElementById('tab-register');
+                    const loginForm = document.getElementById('login-form');
+                    const registerForm = document.getElementById('register-form');
+
+                    tabLogin.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        tabLogin.classList.add('active');
+                        tabRegister.classList.remove('active');
+                        loginForm.classList.remove('hidden');
+                        registerForm.classList.add('hidden');
+                    });
+
+                    tabRegister.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        tabRegister.classList.add('active');
+                        tabLogin.classList.remove('active');
+                        registerForm.classList.remove('hidden');
+                        loginForm.classList.add('hidden');
+                    });
+                });
+            </script>
+            
+            <div class="designed-by">
+                <i class="fa-solid fa-code"></i> Designed & Developed by <span>Ritik Khanguda</span>
+            </div>
+
+            <div class="login-footer">
+                <p>Authorized Medical Personnel Only</p>
+                <span>Demo Credentials: doctor / password123</span>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

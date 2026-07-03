@@ -1911,5 +1911,319 @@ body {
     to { transform: scale(1.2); opacity: 1; }
 }
 
+/* Live Command Layout Grid */
+.live-dashboard-layout {
+    display: grid;
+    grid-template-columns: 1.3fr 1fr;
+    gap: 30px;
+    align-items: start;
+}
+
+@media (max-width: 1200px) {
+    .live-dashboard-layout {
+        grid-template-columns: 1fr;
+    }
+}
+
+.telemetry-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+}
+
+.telemetry-item {
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 12px;
+    padding: 12px 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.telemetry-item .label {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    font-weight: 500;
+}
+
+.telemetry-item .value {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.telemetry-item .highlight {
+    color: var(--color-accent);
+}
+
+/* Eye Calibration Scan UI Styles */
+.scan-btn-wrapper {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 15px;
+}
+
+.btn-scan-eyes {
+    background: linear-gradient(135deg, #0d9488, #0f766e);
+    border: 1px solid rgba(13, 148, 136, 0.3);
+    color: var(--text-primary);
+    padding: 10px 18px;
+    border-radius: 10px;
+    font-weight: 500;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    font-family: var(--font-main);
+    font-size: 14px;
+    transition: var(--transition-smooth);
+    box-shadow: 0 4px 10px rgba(13, 148, 136, 0.15);
+}
+
+.btn-scan-eyes:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 15px rgba(13, 148, 136, 0.3), 0 0 8px rgba(13, 148, 136, 0.5);
+    background: linear-gradient(135deg, #14b8a6, #0d9488);
+}
+
+.btn-scan-eyes i {
+    font-size: 16px;
+    color: #2dd4bf;
+    animation: scanner-laser 2s infinite ease-in-out;
+}
+
+@keyframes scanner-laser {
+    0%, 100% { opacity: 0.5; transform: scale(1); }
+    50% { opacity: 1; transform: scale(1.1); text-shadow: 0 0 8px #2dd4bf; }
+}
+
+/* Scan Overlay Modal */
+.scan-overlay-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(8, 11, 19, 0.92);
+    backdrop-filter: blur(15px);
+    z-index: 100000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.scan-overlay-modal.active {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.scan-modal-content {
+    background: var(--bg-glass);
+    border: 1px solid var(--color-accent);
+    border-radius: 24px;
+    width: 580px;
+    padding: 30px;
+    text-align: center;
+    box-shadow: 0 0 35px rgba(6, 182, 212, 0.25);
+    transform: scale(0.9);
+    transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    position: relative;
+    overflow: hidden;
+}
+
+.scan-overlay-modal.active .scan-modal-content {
+    transform: scale(1);
+}
+
+.scan-modal-content h3 {
+    font-size: 1.5rem;
+    font-weight: 700;
+    margin-bottom: 8px;
+    color: var(--text-primary);
+}
+
+.scan-modal-content p {
+    color: var(--text-secondary);
+    font-size: 0.95rem;
+    margin-bottom: 24px;
+}
+
+.scan-viewport {
+    position: relative;
+    width: 100%;
+    height: 340px;
+    background: #05070a;
+    border-radius: 16px;
+    border: 1px solid var(--border-glass);
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 20px;
+}
+
+.scan-viewport-stream {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+/* Hologram Scanning Target elements */
+.scan-target-box {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+}
+
+.scan-target-circle {
+    border: 2px dashed #06b6d4;
+    border-radius: 50%;
+    position: absolute;
+    animation: rotate-target 15s infinite linear;
+}
+
+.scan-target-circle.eye-l {
+    width: 60px;
+    height: 60px;
+    left: 32%;
+    top: 45%;
+    border-color: #2dd4bf;
+    animation: rotate-target 10s infinite linear;
+}
+
+.scan-target-circle.eye-r {
+    width: 60px;
+    height: 60px;
+    right: 32%;
+    top: 45%;
+    border-color: #2dd4bf;
+    animation: rotate-target-reverse 10s infinite linear;
+}
+
+.scan-target-face {
+    width: 280px;
+    height: 300px;
+    border: 1px solid rgba(6, 182, 212, 0.4);
+    border-radius: 50% 50% 40% 40%;
+    position: absolute;
+    box-shadow: inset 0 0 20px rgba(6, 182, 212, 0.1);
+}
+
+.scan-horizontal-laser {
+    position: absolute;
+    width: 100%;
+    height: 3px;
+    background: linear-gradient(90deg, transparent, #06b6d4, #2dd4bf, #06b6d4, transparent);
+    box-shadow: 0 0 12px #06b6d4;
+    animation: laser-sweep 2.5s infinite ease-in-out;
+}
+
+@keyframes rotate-target {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+@keyframes rotate-target-reverse {
+    from { transform: rotate(360deg); }
+    to { transform: rotate(0deg); }
+}
+
+@keyframes laser-sweep {
+    0%, 100% { top: 10%; }
+    50% { top: 90%; }
+}
+
+.scan-progress-container {
+    width: 100%;
+    background: rgba(255, 255, 255, 0.05);
+    height: 8px;
+    border-radius: 10px;
+    overflow: hidden;
+    position: relative;
+    margin-bottom: 20px;
+}
+
+.scan-progress-bar {
+    width: 0%;
+    height: 100%;
+    background: linear-gradient(90deg, #06b6d4, #2dd4bf);
+    box-shadow: 0 0 10px #2dd4bf;
+    border-radius: 10px;
+    transition: width 0.1s linear;
+}
+
+.scan-status-text {
+    font-family: var(--font-mono);
+    font-size: 0.9rem;
+    color: #2dd4bf;
+    text-shadow: 0 0 5px rgba(45, 212, 191, 0.4);
+    margin-bottom: 10px;
+}
+
+.scan-cancel-btn {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--border-glass);
+    color: var(--text-primary);
+    padding: 10px 24px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-family: var(--font-main);
+    transition: var(--transition-smooth);
+}
+
+.scan-cancel-btn:hover {
+    background: rgba(239, 68, 68, 0.15);
+    color: var(--color-danger-bright);
+    border-color: rgba(239, 68, 68, 0.3);
+}
+
+/* Eye Calibration result preview */
+.calibration-result-box {
+    margin-top: 15px;
+    padding: 14px 18px;
+    background: rgba(13, 148, 136, 0.08);
+    border: 1px solid rgba(13, 148, 136, 0.25);
+    border-radius: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    text-align: left;
+}
+
+.calibration-result-box h5 {
+    color: #2dd4bf;
+    font-size: 0.95rem;
+    margin-bottom: 4px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.calibration-result-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+}
+
+.calibration-item {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+}
+
+.calibration-item span {
+    color: var(--text-primary);
+    font-weight: 600;
+}
+
 
 

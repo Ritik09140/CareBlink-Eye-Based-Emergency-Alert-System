@@ -84,6 +84,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 loadPatientsList();
             } else if (targetTab === 'alert-history') {
                 loadAlertHistory();
+            } else if (targetTab === 'hospital-records') {
+                loadHospitalRecords();
             }
         });
     });
@@ -117,6 +119,22 @@ document.addEventListener('DOMContentLoaded', () => {
             const data = await response.json();
             appState.cameraRunning = data.is_running;
             
+            const cameraImg = document.getElementById('camera-stream-img');
+            const cameraPlaceholder = document.getElementById('camera-placeholder-box');
+            
+            const teleName = document.getElementById('tele-patient-name');
+            const teleId = document.getElementById('tele-patient-id');
+            const teleRoom = document.getElementById('tele-patient-room');
+            const teleCondition = document.getElementById('tele-patient-condition');
+            const teleEarBase = document.getElementById('tele-ear-base');
+            const teleEarCurrent = document.getElementById('tele-ear-current');
+            const teleEarThresh = document.getElementById('tele-ear-thresh');
+            const telePupilDist = document.getElementById('tele-pupil-dist');
+            const teleCurrentPd = document.getElementById('tele-current-pd');
+            const teleGazePos = document.getElementById('tele-gaze-pos');
+            const teleBlinksCount = document.getElementById('tele-blinks-count');
+            const teleSystemStatus = document.getElementById('tele-system-status');
+            
             if (appState.cameraRunning) {
                 dbCameraStatusBadge.className = 'camera-badge running';
                 dbCameraStatusBadge.querySelector('.text').textContent = 'ONLINE';
@@ -125,6 +143,53 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 document.getElementById('system-status-badge').querySelector('.status-text').textContent = 'Camera Streaming';
                 document.getElementById('system-status-badge').querySelector('.pulse-dot').className = 'pulse-dot green';
+                
+                if (cameraImg && cameraPlaceholder) {
+                    cameraImg.src = '/video_feed';
+                    cameraImg.style.display = 'block';
+                    cameraPlaceholder.style.display = 'none';
+                }
+                
+                if (teleName && data.patient_name) teleName.textContent = data.patient_name;
+                if (teleId && data.patient_id) teleId.textContent = data.patient_id;
+                if (teleRoom) {
+                    if (data.patient_age && data.room_number) {
+                        teleRoom.textContent = `${data.patient_age} / Room ${data.room_number}`;
+                    } else if (data.room_number) {
+                        teleRoom.textContent = data.room_number;
+                    }
+                }
+                if (teleCondition && data.medical_condition) teleCondition.textContent = data.medical_condition;
+                if (teleEarBase && data.baseline_ear !== undefined) teleEarBase.textContent = Number(data.baseline_ear).toFixed(3);
+                if (teleEarCurrent && data.current_ear !== undefined) teleEarCurrent.textContent = Number(data.current_ear).toFixed(3);
+                if (teleEarThresh && data.ear_threshold !== undefined) teleEarThresh.textContent = Number(data.ear_threshold).toFixed(3);
+                if (telePupilDist && data.pupil_distance !== undefined) telePupilDist.textContent = Number(data.pupil_distance).toFixed(1) + ' mm';
+                if (teleCurrentPd && data.current_pd !== undefined) teleCurrentPd.textContent = Number(data.current_pd).toFixed(1) + ' mm';
+                
+                if (teleGazePos && data.current_gaze !== undefined) {
+                    teleGazePos.textContent = data.current_gaze.toUpperCase();
+                    if (data.current_gaze === 'left' || data.current_gaze === 'right') {
+                        teleGazePos.style.color = '#ef4444';
+                    } else {
+                        teleGazePos.style.color = '#2dd4bf';
+                    }
+                }
+                
+                if (teleBlinksCount && data.current_blinks !== undefined) teleBlinksCount.textContent = data.current_blinks;
+                
+                if (teleSystemStatus) {
+                    if (appState.activeAlert) {
+                        teleSystemStatus.className = 'status-badge-inline emergency';
+                        teleSystemStatus.textContent = 'EMERGENCY';
+                    } else if (data.face_detected) {
+                        teleSystemStatus.className = 'status-badge-inline safe';
+                        teleSystemStatus.textContent = 'EYES DETECTED';
+                    } else {
+                        teleSystemStatus.className = 'status-badge-inline warning';
+                        teleSystemStatus.textContent = 'SEARCHING EYES...';
+                    }
+                }
+                
             } else {
                 dbCameraStatusBadge.className = 'camera-badge stopped';
                 dbCameraStatusBadge.querySelector('.text').textContent = 'OFFLINE';
@@ -133,23 +198,70 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 document.getElementById('system-status-badge').querySelector('.status-text').textContent = 'Camera Stopped';
                 document.getElementById('system-status-badge').querySelector('.pulse-dot').className = 'pulse-dot red';
+                
+                if (cameraImg && cameraPlaceholder) {
+                    cameraImg.removeAttribute('src');
+                    cameraImg.style.display = 'none';
+                    cameraPlaceholder.style.display = 'flex';
+                }
             }
         } catch (err) {
             console.error('Error fetching camera status:', err);
         }
     }
 
+    // Minimize button logic for floating camera widget
+    const minimizeFloatCamBtn = document.getElementById('minimize-floating-cam');
+    const floatWidgetEl = document.getElementById('floating-camera-widget');
+    if (minimizeFloatCamBtn && floatWidgetEl) {
+        minimizeFloatCamBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            floatWidgetEl.classList.toggle('minimized');
+            const icon = minimizeFloatCamBtn.querySelector('i');
+            if (floatWidgetEl.classList.contains('minimized')) {
+                icon.className = 'fa-solid fa-expand';
+            } else {
+                icon.className = 'fa-solid fa-minus';
+            }
+        });
+    }
+
+    function scrollToCameraFeed() {
+        const targetTab = 'live-dashboard';
+        const item = document.querySelector(`.menu-item[data-tab="${targetTab}"]`);
+        if (item && !item.classList.contains('active')) {
+            tabMenuItems.forEach(mi => mi.classList.remove('active'));
+            item.classList.add('active');
+
+            contentPanels.forEach(panel => panel.classList.remove('active'));
+            document.getElementById(`${targetTab}-tab`).classList.add('active');
+
+            tabTitle.textContent = pageMetadata[targetTab].title;
+            tabSubtitle.textContent = pageMetadata[targetTab].subtitle;
+
+            appState.activeTab = targetTab;
+        }
+        
+        // Scroll to the camera stream section
+        const cameraCard = document.querySelector('.camera-action-card');
+        if (cameraCard) {
+            cameraCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+    }
+
     dbCameraStartBtn.addEventListener('click', async () => {
         try {
             dbCameraStartBtn.disabled = true;
+            const patientIdVal = document.getElementById('monitor-patient-select')?.value || 'PT-2045';
             const response = await fetch('/api/camera/start', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ patient_id: 'PT-2045' })
+                body: JSON.stringify({ patient_id: patientIdVal })
             });
             const data = await response.json();
             if (data.success) {
                 updateCameraStatus();
+                setTimeout(scrollToCameraFeed, 150);
             }
         } catch (err) {
             console.error('Camera start failed:', err);
@@ -176,6 +288,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Initial check on page load
     updateCameraStatus();
+    loadPatientSelect();
 
 
     // ==========================================================================
@@ -337,6 +450,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 appState.activeAlert = null;
                 renderAlertSafe();
             }
+            
+            // Sync camera and floating widget telemetry stats
+            updateCameraStatus();
         } catch (error) {
             console.error('Error polling active alerts:', error);
             document.getElementById('system-status-badge').querySelector('.status-text').textContent = 'API Connection Error';
@@ -421,7 +537,10 @@ document.addEventListener('DOMContentLoaded', () => {
             name: document.getElementById('reg-name').value.trim(),
             age: parseInt(document.getElementById('reg-age').value),
             room_number: document.getElementById('reg-room').value.trim(),
-            medical_condition: document.getElementById('reg-condition').value.trim()
+            medical_condition: document.getElementById('reg-condition').value.trim(),
+            ear_threshold: parseFloat(document.getElementById('cal-ear-threshold')?.value || 0.22),
+            baseline_ear: parseFloat(document.getElementById('cal-baseline-ear')?.value || 0.28),
+            pupil_distance: parseFloat(document.getElementById('cal-pupil-distance')?.value || 60.0)
         };
 
         try {
@@ -438,7 +557,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 banner.querySelector('span').textContent = 'Patient successfully registered in database!';
                 
                 registerPatientForm.reset();
+                
+                // Hide calibration preview card
+                const preview = document.getElementById('calibration-results-preview');
+                if (preview) {
+                    preview.classList.add('hidden');
+                    document.getElementById('cal-ear-threshold').value = "0.22";
+                    document.getElementById('cal-baseline-ear').value = "0.28";
+                    document.getElementById('cal-pupil-distance').value = "60.0";
+                }
+                
                 loadPatientsList();
+                loadPatientSelect();
 
                 setTimeout(() => {
                     banner.classList.add('hidden');
@@ -529,6 +659,106 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    async function loadPatientSelect() {
+        const selectEl = document.getElementById('monitor-patient-select');
+        if (!selectEl) return;
+        try {
+            const response = await fetch('/api/patients');
+            if (!response.ok) throw new Error('Failed to load patients');
+            const patients = await response.json();
+            
+            selectEl.innerHTML = '';
+            patients.forEach(p => {
+                const opt = document.createElement('option');
+                opt.value = p.patient_id;
+                opt.textContent = `${p.name} (${p.room_number})`;
+                selectEl.appendChild(opt);
+            });
+        } catch (err) {
+            console.error('Error loading patient select:', err);
+        }
+    }
+
+    async function loadHospitalRecords() {
+        const hospTitle = document.getElementById('hosp-records-title');
+        const hospProfileName = document.getElementById('hosp-profile-name');
+        const hospProfileState = document.getElementById('hosp-profile-state');
+        const hospProfilePatientsCount = document.getElementById('hosp-profile-patients-count');
+        const hospProfileAlertsCount = document.getElementById('hosp-profile-alerts-count');
+        const hospPatientsTableBody = document.querySelector('#hosp-patients-table tbody');
+        const hospVideosTableBody = document.querySelector('#hosp-videos-table tbody');
+        
+        try {
+            if (hospPatientsTableBody) hospPatientsTableBody.innerHTML = '<tr><td colspan="4" class="text-center text-muted"><i class="fa-solid fa-spinner fa-spin"></i> Loading...</td></tr>';
+            if (hospVideosTableBody) hospVideosTableBody.innerHTML = '<tr><td colspan="5" class="text-center text-muted"><i class="fa-solid fa-spinner fa-spin"></i> Loading...</td></tr>';
+            
+            const response = await fetch('/api/hospital/records');
+            if (!response.ok) throw new Error('Failed to load hospital records');
+            const data = await response.json();
+            
+            // Set header & profile details
+            if (hospTitle) hospTitle.textContent = `${data.hospital_name} - Records Archive`;
+            if (hospProfileName) hospProfileName.textContent = data.hospital_name;
+            if (hospProfileState) hospProfileState.textContent = data.state;
+            if (hospProfilePatientsCount) hospProfilePatientsCount.textContent = `${data.patients.length} Patients Registered`;
+            if (hospProfileAlertsCount) hospProfileAlertsCount.textContent = `${data.alerts.length} Incidents Logged`;
+            
+            // Populate patients table
+            if (hospPatientsTableBody) {
+                if (data.patients.length === 0) {
+                    hospPatientsTableBody.innerHTML = '<tr><td colspan="4" class="text-center text-muted">No patients registered for this hospital.</td></tr>';
+                } else {
+                    hospPatientsTableBody.innerHTML = '';
+                    data.patients.forEach(p => {
+                        const tr = document.createElement('tr');
+                        tr.innerHTML = `
+                            <td><strong>${escapeHTML(p.patient_id)}</strong></td>
+                            <td>${escapeHTML(p.name)}</td>
+                            <td><span class="badge">${escapeHTML(p.room_number)}</span></td>
+                            <td><span class="text-muted">${escapeHTML(p.medical_condition)}</span></td>
+                        `;
+                        hospPatientsTableBody.appendChild(tr);
+                    });
+                }
+            }
+            
+            // Populate video and alert history table
+            if (hospVideosTableBody) {
+                if (data.alerts.length === 0) {
+                    hospVideosTableBody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">No alerts or recorded clips found.</td></tr>';
+                } else {
+                    hospVideosTableBody.innerHTML = '';
+                    data.alerts.forEach(a => {
+                        const tr = document.createElement('tr');
+                        
+                        let videoCell = '<span class="text-muted"><i class="fa-solid fa-video-slash"></i> No Clip</span>';
+                        if (a.video_filename) {
+                            videoCell = `
+                                <a href="/all_records/${escapeHTML(a.video_filename)}" target="_blank" class="action-btn btn-secondary btn-ripple" style="padding: 4px 10px; font-size: 0.75rem; border-radius: 6px;">
+                                    <i class="fa-solid fa-circle-play text-danger"></i> Watch Video
+                                </a>
+                            `;
+                        }
+                        
+                        tr.innerHTML = `
+                            <td>${escapeHTML(a.created_at)}</td>
+                            <td><strong>${escapeHTML(a.patient_id)}</strong></td>
+                            <td>${escapeHTML(a.name)}</td>
+                            <td>${escapeHTML(a.message)}</td>
+                            <td>${videoCell}</td>
+                        `;
+                        hospVideosTableBody.appendChild(tr);
+                    });
+                }
+            }
+            
+        } catch (err) {
+            console.error('Error fetching hospital records:', err);
+            if (hospPatientsTableBody) hospPatientsTableBody.innerHTML = '<tr><td colspan="4" class="text-center alert-text">Failed to fetch patient data.</td></tr>';
+            if (hospVideosTableBody) hospVideosTableBody.innerHTML = '<tr><td colspan="5" class="text-center alert-text">Failed to fetch video telemetry clips.</td></tr>';
+        }
+    }
+
     function escapeHTML(str) {
         if (!str) return '';
         return str.replace(/[&<>'"]/g, 
@@ -540,5 +770,130 @@ document.addEventListener('DOMContentLoaded', () => {
                 '"': '&quot;'
             }[tag] || tag)
         );
+    }
+    // ==========================================================================
+    // Eye Calibration Scan Controller
+    // ==========================================================================
+    const btnScanPatient = document.getElementById('btn-scan-patient');
+    const eyeScanModal = document.getElementById('eye-scan-modal');
+    const btnCancelScan = document.getElementById('btn-cancel-scan');
+    const btnApplyScan = document.getElementById('btn-apply-scan');
+    const scanStreamImg = document.getElementById('scan-stream-img');
+    const scanProgressBar = document.getElementById('scan-progress-bar');
+    const scanStatusText = document.getElementById('scan-status-text');
+    
+    const scanActiveView = document.getElementById('scan-active-view');
+    const scanResultView = document.getElementById('scan-result-view');
+    
+    let scanController = null;
+    let lastScanData = null;
+    
+    if (btnScanPatient && eyeScanModal) {
+        btnScanPatient.addEventListener('click', async () => {
+            // Reset scan state
+            scanActiveView.classList.remove('hidden');
+            scanResultView.classList.add('hidden');
+            scanProgressBar.style.width = '0%';
+            scanStatusText.textContent = 'INITIALIZING WEBCAM SCANNER...';
+            eyeScanModal.classList.add('active');
+            
+            // Set stream source to active feed
+            scanStreamImg.src = '/video_feed';
+            
+            let progress = 0;
+            let progressInterval = setInterval(() => {
+                if (progress < 90) {
+                    progress += 2.5;
+                    scanProgressBar.style.width = progress + '%';
+                    scanStatusText.textContent = `ANALYZING EYE REFLECTION & GEOMETRY... ${Math.round(progress)}%`;
+                }
+            }, 100);
+            
+            scanController = new AbortController();
+            const signal = scanController.signal;
+            
+            try {
+                const response = await fetch('/api/camera/scan_calibration', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    signal: signal
+                });
+                
+                clearInterval(progressInterval);
+                const data = await response.json();
+                
+                if (data.success) {
+                    scanProgressBar.style.width = '100%';
+                    scanStatusText.textContent = 'BIOMETRIC SCAN COMPLETE!';
+                    
+                    lastScanData = data;
+                    
+                    // Show scanned details inside result view
+                    document.getElementById('scan-res-id').textContent = data.patient_id;
+                    document.getElementById('scan-res-name').textContent = data.name;
+                    document.getElementById('scan-res-age').textContent = data.age;
+                    document.getElementById('scan-res-room').textContent = data.room_number;
+                    document.getElementById('scan-res-condition').textContent = data.medical_condition;
+                    document.getElementById('scan-res-base-ear').textContent = data.baseline_ear.toFixed(3);
+                    document.getElementById('scan-res-pd-val').textContent = data.pupil_distance.toFixed(1) + ' mm';
+                    
+                    setTimeout(() => {
+                        scanActiveView.classList.add('hidden');
+                        scanResultView.classList.remove('hidden');
+                    }, 600);
+                } else {
+                    scanStatusText.textContent = `SCAN FAILED: ${data.message}`;
+                    scanProgressBar.style.width = '0%';
+                }
+            } catch (err) {
+                clearInterval(progressInterval);
+                if (err.name === 'AbortError') {
+                    scanStatusText.textContent = 'CALIBRATION CANCELLED.';
+                } else {
+                    scanStatusText.textContent = 'ERROR: Webcam server offline.';
+                    console.error('Calibration scan failed:', err);
+                }
+                scanProgressBar.style.width = '0%';
+            }
+        });
+        
+        if (btnApplyScan) {
+            btnApplyScan.addEventListener('click', () => {
+                if (lastScanData) {
+                    // Populate fields
+                    document.getElementById('reg-patient-id').value = lastScanData.patient_id;
+                    document.getElementById('reg-name').value = lastScanData.name;
+                    document.getElementById('reg-age').value = lastScanData.age;
+                    document.getElementById('reg-room').value = lastScanData.room_number;
+                    document.getElementById('reg-condition').value = lastScanData.medical_condition;
+                    
+                    // Update preview values
+                    document.getElementById('cal-res-baseline').textContent = lastScanData.baseline_ear.toFixed(3);
+                    document.getElementById('cal-res-thresh').textContent = lastScanData.ear_threshold.toFixed(3);
+                    document.getElementById('cal-res-pd').textContent = lastScanData.pupil_distance.toFixed(1) + ' mm';
+                    
+                    // Set hidden inputs
+                    document.getElementById('cal-ear-threshold').value = lastScanData.ear_threshold;
+                    document.getElementById('cal-baseline-ear').value = lastScanData.baseline_ear;
+                    document.getElementById('cal-pupil-distance').value = lastScanData.pupil_distance;
+                    
+                    // Show preview
+                    document.getElementById('calibration-results-preview').classList.remove('hidden');
+                }
+                closeScanModal();
+            });
+        }
+        
+        btnCancelScan.addEventListener('click', () => {
+            if (scanController) {
+                scanController.abort();
+            }
+            closeScanModal();
+        });
+        
+        function closeScanModal() {
+            eyeScanModal.classList.remove('active');
+            scanStreamImg.removeAttribute('src');
+        }
     }
 });

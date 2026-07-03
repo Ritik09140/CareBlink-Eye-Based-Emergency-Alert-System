@@ -5,11 +5,21 @@ import math
 import os
 import requests
 import urllib.request
+import threading
 
 # Set stdout encoding to UTF-8 for Windows command prompt to avoid character display errors
 if sys.platform.startswith('win'):
     import io
     sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+
+def send_api_request_async(url, payload, timeout=1.0):
+    """Sends a POST request in a separate daemon thread to avoid blocking the main OpenCV video loop."""
+    def run():
+        try:
+            requests.post(url, json=payload, timeout=timeout)
+        except Exception:
+            pass
+    threading.Thread(target=run, daemon=True).start()
 
 # Coordinates indexes for MediaPipe Face Mesh
 # Left Eye landmarks
@@ -73,7 +83,6 @@ def calculate_ear(landmarks, horizontal_idx, vertical_idxs, w, h):
     if h_dist == 0:
         return 0.0
         
-    # Calculate EAR
     avg_v_dist = sum(v_dists) / len(vertical_idxs)
     return avg_v_dist / h_dist
 
@@ -97,6 +106,22 @@ def main():
         
     print(f"\n[*] Initializing webcam stream... Monitoring Patient: {patient_id}")
     
+    # Fetch personalized config from Flask backend if available
+    ear_threshold_val = EAR_THRESHOLD
+    baseline_ear_val = 0.28
+    pupil_distance_val = 60.0
+    try:
+        resp = requests.get(f"http://localhost:5000/api/patient/{patient_id}/threshold", timeout=2.0)
+        if resp.status_code == 200:
+            p_data = resp.json()
+            if p_data.get("success"):
+                ear_threshold_val = float(p_data["ear_threshold"])
+                baseline_ear_val = float(p_data["baseline_ear"])
+                pupil_distance_val = float(p_data["pupil_distance"])
+                print(f"[✔] Loaded personalized metrics for {patient_id}: Thresh={ear_threshold_val:.3f}, Baseline={baseline_ear_val:.3f}, PD={pupil_distance_val:.1f}mm")
+    except Exception as e:
+        print(f"[!] Could not fetch personalized metrics from server (using default 0.22): {e}")
+
     try:
         import mediapipe as mp
         from mediapipe.tasks import python
@@ -115,8 +140,10 @@ def main():
     )
     detector = vision.FaceLandmarker.create_from_options(options)
     
-    # Open Webcam
-    cap = cv2.VideoCapture(0)
+    # Open Webcam (try DirectShow first on Windows for stability/speed, fallback to default)
+    cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)
+    if not cap.isOpened():
+        cap = cv2.VideoCapture(0)
     if not cap.isOpened():
         print("[ERROR] Could not open webcam. Make sure your camera is connected.")
         sys.exit(1)
@@ -124,7 +151,12 @@ def main():
     # Tracking variables
     closed_frames = 0
     blink_timestamps = []
+    gaze_shift_timestamps = []
     last_alert_time = 0
+    last_active_gaze = None
+    current_gaze = "center"
+    current_pd = 60.0
+    
     records_dir = "all records"
     os.makedirs(records_dir, exist_ok=True)
     video_writer = None
@@ -141,6 +173,15 @@ def main():
             
         # Flip the frame horizontally for mirror view
         frame = cv2.flip(frame, 1)
+        
+        # Resize frame to standard width of 640 to ensure super smooth CPU performance (no lag/freezing)
+        target_width = 640
+        h_orig, w_orig, _ = frame.shape
+        if w_orig > target_width:
+            aspect_ratio = h_orig / w_orig
+            target_height = int(target_width * aspect_ratio)
+            frame = cv2.resize(frame, (target_width, target_height))
+            
         h, w, _ = frame.shape
         
         # Convert BGR to RGB for MediaPipe Tasks
@@ -152,6 +193,7 @@ def main():
         
         current_time = time.time()
         avg_ear = 0.0
+        avg_gaze_offset = 0.0
         
         if results.face_landmarks:
             landmarks = results.face_landmarks[0]
@@ -161,9 +203,53 @@ def main():
             right_ear = calculate_ear(landmarks, RIGHT_EYE_H, RIGHT_EYE_V, w, h)
             avg_ear = (left_ear + right_ear) / 2.0
             
+            # Calculate Pupil Distance (estimated PD in mm)
+            # left iris: 468, right iris: 473, face left: 234, face right: 454
+            p_left_iris = get_landmark_point(landmarks[468], w, h)
+            p_right_iris = get_landmark_point(landmarks[473], w, h)
+            p_face_left = get_landmark_point(landmarks[234], w, h)
+            p_face_right = get_landmark_point(landmarks[454], w, h)
+            d_pupils = distance(p_left_iris, p_right_iris)
+            w_face = distance(p_face_left, p_face_right)
+            if w_face > 0:
+                current_pd = (d_pupils / w_face) * 140.0
+            else:
+                current_pd = 60.0
+                
+            # Gaze Offset calculation
+            left_eye_center_x = (landmarks[33].x + landmarks[133].x) / 2.0
+            left_eye_center_y = (landmarks[33].y + landmarks[133].y) / 2.0
+            right_eye_center_x = (landmarks[362].x + landmarks[263].x) / 2.0
+            right_eye_center_y = (landmarks[362].y + landmarks[263].y) / 2.0
+            
+            left_eye_width = distance(get_landmark_point(landmarks[33], w, h), get_landmark_point(landmarks[133], w, h))
+            right_eye_width = distance(get_landmark_point(landmarks[362], w, h), get_landmark_point(landmarks[263], w, h))
+            
+            p_left_center = (int(left_eye_center_x * w), int(left_eye_center_y * h))
+            p_right_center = (int(right_eye_center_x * w), int(right_eye_center_y * h))
+            
+            left_gaze_offset = (p_left_iris[0] - p_left_center[0]) / left_eye_width if left_eye_width > 0 else 0.0
+            right_gaze_offset = (p_right_iris[0] - p_right_center[0]) / right_eye_width if right_eye_width > 0 else 0.0
+            avg_gaze_offset = (left_gaze_offset + right_gaze_offset) / 2.0
+            
+            # Classification of gaze state
+            if avg_gaze_offset < -0.09:
+                current_gaze = "right"
+            elif avg_gaze_offset > 0.09:
+                current_gaze = "left"
+            else:
+                current_gaze = "center"
+                
+            # Gaze shifts
+            if current_gaze in ["left", "right"]:
+                if last_active_gaze is not None and current_gaze != last_active_gaze:
+                    gaze_shift_timestamps.append(current_time)
+                    print(f"[*] Horizontal Gaze Shift: {last_active_gaze} -> {current_gaze}")
+                last_active_gaze = current_gaze
+            
             # Determine color for drawing based on state
             color = (0, 255, 0) # Green for normal open eyes
-            if avg_ear < EAR_THRESHOLD:
+            if avg_ear < ear_threshold_val:
                 color = (0, 0, 255) # Red for closed eyes
                 
             # Draw eye landmarks for visualization
@@ -175,33 +261,48 @@ def main():
                 pt = get_landmark_point(landmarks[idx], w, h)
                 cv2.circle(frame, pt, 2, color, -1)
                 
+            # Draw irises
+            cv2.circle(frame, p_left_iris, 3, (255, 255, 0), -1)
+            cv2.circle(frame, p_right_iris, 3, (255, 255, 0), -1)
+                
             # Blink counting logic
-            if avg_ear < EAR_THRESHOLD:
+            if avg_ear < ear_threshold_val:
                 closed_frames += 1
             else:
                 if closed_frames >= EAR_CONSEC_FRAMES:
-                    # Eye closed long enough, then opened -> Register blink
-                    blink_timestamps.append(current_time)
+                    # Stricter rapid blink timing check (<= 1.2s)
+                    if blink_timestamps:
+                        time_since_last = current_time - blink_timestamps[-1]
+                        if time_since_last > 1.2:
+                            blink_timestamps = [current_time]
+                        else:
+                            blink_timestamps.append(current_time)
+                    else:
+                        blink_timestamps.append(current_time)
+                        
                     print(f"[*] Blink detected! (Total: {len(blink_timestamps)} in current window)")
-                    
-                    # Notify server about normal blink for real-time sound sync
-                    try:
-                        requests.post("http://localhost:5000/api/blink", json={"patient_id": patient_id}, timeout=0.5)
-                    except Exception:
-                        pass
+                    send_api_request_async("http://localhost:5000/api/blink", {"patient_id": patient_id}, timeout=0.5)
                 closed_frames = 0
                 
         # Filter blink timestamps (only keep blinks in the last 5 seconds)
         blink_timestamps = [t for t in blink_timestamps if current_time - t <= ALARM_WINDOW_SEC]
         current_blinks = len(blink_timestamps)
         
-        # Check for emergency alert condition
-        cooldown_active = (current_time - last_alert_time) < COOLDOWN_SEC
+        gaze_shift_timestamps = [t for t in gaze_shift_timestamps if current_time - t <= ALARM_WINDOW_SEC]
+        current_gaze_shifts = len(gaze_shift_timestamps)
         
-        if current_blinks >= ALARM_BLINK_COUNT and not cooldown_active:
+        # Check for emergency alert condition (5 blinks OR 4 gaze shifts)
+        cooldown_active = (current_time - last_alert_time) < COOLDOWN_SEC
+        triggered_by_blinks = current_blinks >= ALARM_BLINK_COUNT
+        triggered_by_gaze = current_gaze_shifts >= 4
+        
+        if (triggered_by_blinks or triggered_by_gaze) and not cooldown_active:
             print("\n!!! EMERGENCY ALERT TRIGGERED !!!")
             last_alert_time = current_time
             blink_timestamps = []
+            gaze_shift_timestamps = []
+            
+            alert_msg = "Emergency: 5 rapid eye blinks detected!" if triggered_by_blinks else "Emergency: Continuous horizontal eye movements detected!"
             
             # Setup video filename and path beforehand
             video_filename_val = None
@@ -217,20 +318,15 @@ def main():
                 print(f"[*] Started recording emergency alert video: {video_filepath}")
             except Exception as ev:
                 print(f"[ERROR] Could not start video recording: {ev}")
-
-            # Send API Alert to Flask Web Server (including video filename)
+ 
+            # Send API Alert to Flask Web Server (including video filename) (non-blocking thread)
             payload = {
                 "patient_id": patient_id,
-                "message": "Emergency: 5 rapid eye blinks detected from patient!",
+                "message": alert_msg,
                 "video_filename": video_filename_val
             }
-            try:
-                response = requests.post("http://localhost:5000/api/alerts", json=payload, timeout=3)
-                if response.status_code == 200:
-                    print("[API SUCCESS] Emergency Alert POSTed successfully.")
-            except Exception as e:
-                print(f"[API FAILED] Could not contact Flask server: {e}")
-
+            send_api_request_async("http://localhost:5000/api/alerts", payload, timeout=3.0)
+ 
         # Write frame to video file if recording is active
         if video_writer is not None:
             try:
@@ -253,40 +349,37 @@ def main():
                 video_writer = None
                 
         # Draw on-screen HUD
-        cv2.rectangle(frame, (10, 10), (380, 150), (25, 20, 15), -1)
-        cv2.rectangle(frame, (10, 10), (380, 150), (60, 60, 60), 1)
+        cv2.rectangle(frame, (10, 10), (380, 160), (25, 20, 15), -1)
+        cv2.rectangle(frame, (10, 10), (380, 160), (60, 60, 60), 1)
         
-        cv2.putText(frame, "CareBlink Patient Monitor", (20, 35), 
+        cv2.putText(frame, "CareBlink Patient Monitor", (20, 30), 
                     cv2.FONT_HERSHEY_SIMPLEX, 0.6, (6, 182, 212), 2)
-        cv2.putText(frame, f"Patient ID: {patient_id}", (20, 60), 
+        cv2.putText(frame, f"Patient ID: {patient_id}", (20, 50), 
                     cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
-        cv2.putText(frame, f"Current EAR: {avg_ear:.3f}", (20, 85), 
+        cv2.putText(frame, f"EAR: {avg_ear:.3f} (Thresh: {ear_threshold_val:.2f})", (20, 70), 
                     cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
-        cv2.putText(frame, "Blinks (5s Window): ", (20, 110), 
+        cv2.putText(frame, f"Gaze: {current_gaze.upper()} (Offset: {avg_gaze_offset:+.3f})", (20, 90), 
                     cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
-        
-        count_color = (0, 255, 0)
-        if current_blinks >= 3:
-            count_color = (0, 255, 255)
-        if current_blinks >= 4:
-            count_color = (0, 0, 255)
-        cv2.putText(frame, str(current_blinks), (180, 110), 
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, count_color, 2)
+        cv2.putText(frame, f"Est. PD: {current_pd:.1f} mm", (20, 110), 
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+        cv2.putText(frame, f"Blinks: {current_blinks} | Shifts: {current_gaze_shifts}", (20, 130), 
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
                     
         if cooldown_active:
-            cv2.putText(frame, "ALERT COOLDOWN", (20, 135), 
+            cv2.rectangle(frame, (10, 10), (380, 160), (0, 140, 255), 1)
+            cv2.putText(frame, "ALERT COOLDOWN", (20, 150), 
                         cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 140, 255), 1)
         else:
-            cv2.putText(frame, "MONITORING ACTIVE", (20, 135), 
+            cv2.putText(frame, "MONITORING ACTIVE", (20, 150), 
                         cv2.FONT_HERSHEY_SIMPLEX, 0.5, (16, 185, 129), 1)
-
+ 
         # Flashing outline
         if (current_time - last_alert_time) < 4.0:
             if int(current_time * 4) % 2 == 0:
                 cv2.rectangle(frame, (0, 0), (w, h), (0, 0, 255), 8)
                 cv2.putText(frame, "!!! EMERGENCY ALERT !!!", (w // 2 - 180, h // 2), 
                             cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 0, 255), 3)
-
+ 
         cv2.imshow("CareBlink - Patient Eye Blink Detection", frame)
         key = cv2.waitKey(1) & 0xFF
         if key == ord('q'):

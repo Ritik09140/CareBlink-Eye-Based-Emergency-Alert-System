@@ -119,160 +119,236 @@
                 </div>
             </div>
 
-            <!-- Stats Row -->
-            <div class="stats-row mt-4 animate-slide-up">
-                <div class="stat-card">
-                    <div class="stat-icon"><i class="fa-solid fa-hospital-user"></i></div>
-                    <div class="stat-data">
-                        <span class="num" id="stat-patient-count">2</span>
-                        <span class="lbl">Monitored Patients</span>
-                    </div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-icon alert-icon"><i class="fa-solid fa-bell"></i></div>
-                    <div class="stat-data">
-                        <span class="num" id="stat-alert-count">0</span>
-                        <span class="lbl">Active Incidents</span>
-                    </div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-icon safe-icon"><i class="fa-solid fa-heart-pulse"></i></div>
-                    <div class="stat-data">
-                        <span class="num">100%</span>
-                        <span class="lbl">Telemetry Health</span>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Alert Console Section -->
-            <div class="dashboard-grid mt-4">
+            <!-- Main Command Layout Grid -->
+            <div class="live-dashboard-layout mt-4">
                 
-                <!-- Redesigned Virtual Bulb Card (Glassmorphic Glow, Realistic Reflections) -->
-                <div class="card bulb-card animate-slide-up" style="animation-delay: 0.1s;">
-                    <h3>Virtual Emergency Bulb</h3>
-                    <div class="bulb-container">
-                        <div class="virtual-bulb status-safe" id="virtual-bulb">
-                            <div class="bulb-reflector"></div>
-                            <div class="bulb-glow"></div>
-                        </div>
-                    </div>
-                    <div class="bulb-status-text" id="bulb-status-text">
-                        SYSTEM SECURE
-                    </div>
-                    <p class="bulb-description">Glowing green indicates normal status. Pulsing yellow indicates camera warning. Strobing red indicates emergency blinks.</p>
-                </div>
-
-                <!-- Active Patient Monitor Status -->
-                <div class="card active-monitor-card animate-slide-up" style="animation-delay: 0.2s;">
-                    <div class="card-header">
-                        <h3>Current Alert Status</h3>
-                        <span class="badge" id="alert-badge">NORMAL</span>
-                    </div>
-
-                    <div class="alert-content-wrapper" id="normal-state-view">
-                        <div class="status-icon-box safe">
-                            <i class="fa-solid fa-circle-check animate-pulse-green"></i>
-                        </div>
-                        <h4>No Active Emergencies</h4>
-                        <p class="text-muted">All monitored rooms are currently reporting stable blink patterns. The Computer Vision detector is active.</p>
-                        
-                        <div class="system-logs-preview">
-                            <div class="preview-header">Monitoring System Info:</div>
-                            <ul>
-                                <li><i class="fa-solid fa-circle-notch fa-spin"></i> CV Engine: Running</li>
-                                <li><i class="fa-solid fa-database"></i> Database Connect: Active</li>
-                                <li><i class="fa-solid fa-microchip"></i> Ear Aspect Ratio threshold: 0.22</li>
-                            </ul>
-                        </div>
-                    </div>
-
-                    <div class="alert-content-wrapper hidden" id="emergency-state-view">
-                        <div class="siren-alert-banner">
-                            <i class="fa-solid fa-truck-medical siren-icon"></i>
-                            <div>
-                                <h4>PATIENT EMERGENCY ALARM</h4>
-                                <p id="emergency-time">Triggered just now</p>
-                            </div>
-                        </div>
-
-                        <!-- Active Patient Details -->
-                        <div class="patient-details-box">
-                            <div class="detail-row">
-                                <span class="label">Patient Name:</span>
-                                <span class="value" id="emg-patient-name">Arthur Dent</span>
-                            </div>
-                            <div class="detail-row">
-                                <span class="label">ID / Room:</span>
-                                <span class="value" id="emg-patient-room">PT-2045 / Room 101</span>
-                            </div>
-                            <div class="detail-row">
-                                <span class="label">Condition:</span>
-                                <span class="value" id="emg-patient-condition">Locked-in Syndrome</span>
-                            </div>
-                            <div class="detail-row">
-                                <span class="label">Trigger Signal:</span>
-                                <span class="value alert-text" id="emg-message">5 continuous blinks detected!</span>
-                            </div>
-                        </div>
-
-                        <div class="action-buttons mt-4">
-                            <button id="dismiss-alert-btn" class="btn btn-danger btn-block pulsing-btn">
-                                <i class="fa-solid fa-circle-xmark"></i>
-                                <span>Dismiss & Reset Alarm</span>
-                            </button>
-                        </div>
-                    </div>
-                </div>
-
-            </div>
-
-            <!-- Redesigned Camera Section (Holographic Scanline Frame Overlay) -->
-            <div class="card camera-action-card mt-4 animate-slide-up" style="animation-delay: 0.3s;">
-                <div class="camera-card-header">
-                    <i class="fa-solid fa-video camera-title-icon"></i>
-                    <div>
-                        <h3>Patient Webcam Stream Controller</h3>
-                        <p class="text-muted">Start or Stop the local Computer Vision patient-monitoring camera tracking script.</p>
-                    </div>
-                </div>
-                
-                <!-- Holographic Scanning Feed Overlay (Visuals Only) -->
-                <div class="camera-hologram-frame mt-3">
-                    <div class="camera-lens-reflection"></div>
-                    <div class="camera-scanner-line"></div>
-                    <div class="camera-corner border-tl"></div>
-                    <div class="camera-corner border-tr"></div>
-                    <div class="camera-corner border-bl"></div>
-                    <div class="camera-corner border-br"></div>
-                    <div class="camera-hud-info">
-                        <span class="hud-item"><i class="fa-solid fa-circle text-danger blink-dot"></i> REC</span>
-                        <span class="hud-item">FPS: 30</span>
-                        <span class="hud-item">RESOLUTION: 720P</span>
-                    </div>
-                    <div class="camera-feed-placeholder" id="camera-placeholder-box">
-                        <i class="fa-solid fa-circle-notch fa-spin camera-spin"></i>
-                        <span>Initializing Eye-Tracking Video Stream...</span>
-                    </div>
-                </div>
-
-                <div class="camera-btn-row mt-4">
-                    <button id="dashboard-camera-start" class="btn btn-primary btn-ripple">
-                        <i class="fa-solid fa-play"></i>
-                        <span>Start Monitor Camera</span>
-                    </button>
-                    <button id="dashboard-camera-stop" class="btn btn-danger btn-ripple">
-                        <i class="fa-solid fa-stop"></i>
-                        <span>Stop Monitor Camera</span>
-                    </button>
+                <!-- LEFT COLUMN: Webcam Stream and Patient Telemetry -->
+                <div class="dashboard-left-col">
                     
-                    <div class="camera-live-badge-box">
-                        <span class="camera-status-label">Stream Status:</span>
-                        <span id="dashboard-camera-status" class="camera-badge running">
-                            <span class="indicator-dot"></span>
-                            <span class="text">ONLINE</span>
-                        </span>
+                    <!-- Redesigned Camera Section (Holographic Scanline Frame Overlay) -->
+                    <div class="card camera-action-card animate-slide-up" style="animation-delay: 0.1s;">
+                        <div class="camera-card-header">
+                            <i class="fa-solid fa-video camera-title-icon"></i>
+                            <div>
+                                <h3>Patient Webcam Stream Controller</h3>
+                                <p class="text-muted">Start or Stop the local Computer Vision patient-monitoring camera tracking script.</p>
+                            </div>
+                        </div>
+                        
+                        <!-- Holographic Scanning Feed Overlay (Visuals Only) -->
+                        <div class="camera-hologram-frame mt-3">
+                            <div class="camera-lens-reflection"></div>
+                            <div class="camera-scanner-line"></div>
+                            <div class="camera-corner border-tl"></div>
+                            <div class="camera-corner border-tr"></div>
+                            <div class="camera-corner border-bl"></div>
+                            <div class="camera-corner border-br"></div>
+                            <div class="camera-hud-info">
+                                <span class="hud-item"><i class="fa-solid fa-circle text-danger blink-dot"></i> REC</span>
+                                <span class="hud-item">FPS: 30</span>
+                                <span class="hud-item">RESOLUTION: 720P</span>
+                            </div>
+                            <!-- Real Webcam Stream Image -->
+                            <img id="camera-stream-img" class="camera-stream-video" src="" alt="Webcam Feed" style="width: 100%; height: 100%; object-fit: cover; display: none;">
+                            
+                            <div class="camera-feed-placeholder" id="camera-placeholder-box">
+                                <i class="fa-solid fa-circle-notch fa-spin camera-spin"></i>
+                                <span id="camera-placeholder-text">Camera is Offline. Click 'Start Monitor' to begin.</span>
+                            </div>
+                        </div>
+
+                        <div class="camera-btn-row mt-4">
+                            <div class="patient-select-wrapper" style="display: flex; flex-direction: column; gap: 4px;">
+                                <span style="font-size: 0.75rem; color: var(--text-secondary); font-weight: 500;">Select Patient to Monitor</span>
+                                <select id="monitor-patient-select" style="background: var(--bg-secondary); color: var(--text-primary); border: 1px solid var(--border-glass); padding: 11px 16px; border-radius: 10px; font-family: var(--font-main); font-size: 14px; outline: none; cursor: pointer; min-width: 220px; transition: var(--transition-smooth); border-color: rgba(255, 255, 255, 0.15);">
+                                    <!-- Populated dynamically from script -->
+                                </select>
+                            </div>
+                            <button id="dashboard-camera-start" class="btn btn-primary btn-ripple">
+                                <i class="fa-solid fa-play"></i>
+                                <span>Start Monitor Camera</span>
+                            </button>
+                            <button id="dashboard-camera-stop" class="btn btn-danger btn-ripple">
+                                <i class="fa-solid fa-stop"></i>
+                                <span>Stop Monitor Camera</span>
+                            </button>
+                            
+                            <div class="camera-live-badge-box">
+                                <span class="camera-status-label">Stream Status:</span>
+                                <span id="dashboard-camera-status" class="camera-badge running">
+                                    <span class="indicator-dot"></span>
+                                    <span class="text">ONLINE</span>
+                                </span>
+                            </div>
+                        </div>
                     </div>
+
+                    <!-- Patient Diagnostics & Telemetry Card -->
+                    <div class="card telemetry-metrics-card mt-4 animate-slide-up" style="animation-delay: 0.2s;">
+                        <h3>Monitored Patient Telemetry</h3>
+                        <p class="text-muted mb-4">Real-time eye geometry parameters and biometrics of the monitored patient.</p>
+                        
+                        <div class="telemetry-grid">
+                            <div class="telemetry-item">
+                                <span class="label">Patient Name:</span>
+                                <span class="value" id="tele-patient-name">Arthur Dent</span>
+                            </div>
+                            <div class="telemetry-item">
+                                <span class="label">Patient ID:</span>
+                                <span class="value font-mono" id="tele-patient-id">PT-2045</span>
+                            </div>
+                            <div class="telemetry-item">
+                                <span class="label">Age / Room:</span>
+                                <span class="value" id="tele-patient-room">42 / Room 101</span>
+                            </div>
+                            <div class="telemetry-item">
+                                <span class="label">Medical Condition:</span>
+                                <span class="value" id="tele-patient-condition">Locked-in Syndrome</span>
+                            </div>
+                            <div class="telemetry-item">
+                                <span class="label">Baseline EAR:</span>
+                                <span class="value font-mono" id="tele-ear-base">0.280</span>
+                            </div>
+                            <div class="telemetry-item">
+                                <span class="label">Current EAR:</span>
+                                <span class="value font-mono" id="tele-ear-current">0.000</span>
+                            </div>
+                            <div class="telemetry-item">
+                                <span class="label">EAR Threshold:</span>
+                                <span class="value font-mono" id="tele-ear-thresh">0.220</span>
+                            </div>
+                            <div class="telemetry-item">
+                                <span class="label">Est. Pupil Dist:</span>
+                                <span class="value font-mono" id="tele-pupil-dist">60.0 mm</span>
+                            </div>
+                            <div class="telemetry-item">
+                                <span class="label">Current PD:</span>
+                                <span class="value font-mono" id="tele-current-pd">60.0 mm</span>
+                            </div>
+                            <div class="telemetry-item">
+                                <span class="label">Gaze Position:</span>
+                                <span class="value font-mono highlight" id="tele-gaze-pos" style="color: #2dd4bf;">CENTER</span>
+                            </div>
+                            <div class="telemetry-item">
+                                <span class="label">Blinks (5s):</span>
+                                <span class="value highlight" id="tele-blinks-count">0</span>
+                            </div>
+                            <div class="telemetry-item">
+                                <span class="label">Status:</span>
+                                <span class="status-badge-inline safe" id="tele-system-status">NORMAL</span>
+                            </div>
+                        </div>
+                    </div>
+
                 </div>
+
+                <!-- RIGHT COLUMN: Active Monitor Status, Virtual Bulb and Stats -->
+                <div class="dashboard-right-col">
+                    
+                    <!-- Active Patient Monitor Status -->
+                    <div class="card active-monitor-card animate-slide-up" style="animation-delay: 0.1s;">
+                        <div class="card-header">
+                            <h3>Current Alert Status</h3>
+                            <span class="badge" id="alert-badge">NORMAL</span>
+                        </div>
+
+                        <div class="alert-content-wrapper" id="normal-state-view">
+                            <div class="status-icon-box safe">
+                                <i class="fa-solid fa-circle-check animate-pulse-green"></i>
+                            </div>
+                            <h4>No Active Emergencies</h4>
+                            <p class="text-muted">All monitored rooms are currently reporting stable blink patterns. The Computer Vision detector is active.</p>
+                            
+                            <div class="system-logs-preview">
+                                <div class="preview-header">Monitoring System Info:</div>
+                                <ul>
+                                    <li><i class="fa-solid fa-circle-notch fa-spin"></i> CV Engine: Running</li>
+                                    <li><i class="fa-solid fa-database"></i> Database Connect: Active</li>
+                                    <li><i class="fa-solid fa-microchip"></i> Ear Aspect Ratio threshold: 0.22</li>
+                                </ul>
+                            </div>
+                        </div>
+
+                        <div class="alert-content-wrapper hidden" id="emergency-state-view">
+                            <div class="siren-alert-banner">
+                                <i class="fa-solid fa-truck-medical siren-icon"></i>
+                                <div>
+                                    <h4>PATIENT EMERGENCY ALARM</h4>
+                                    <p id="emergency-time">Triggered just now</p>
+                                </div>
+                            </div>
+
+                            <!-- Active Patient Details -->
+                            <div class="patient-details-box">
+                                <div class="detail-row">
+                                    <span class="label">Patient Name:</span>
+                                    <span class="value" id="emg-patient-name">Arthur Dent</span>
+                                </div>
+                                <div class="detail-row">
+                                    <span class="label">ID / Room:</span>
+                                    <span class="value" id="emg-patient-room">PT-2045 / Room 101</span>
+                                </div>
+                                <div class="detail-row">
+                                    <span class="label">Condition:</span>
+                                    <span class="value" id="emg-patient-condition">Locked-in Syndrome</span>
+                                </div>
+                                <div class="detail-row">
+                                    <span class="label">Trigger Signal:</span>
+                                    <span class="value alert-text" id="emg-message">5 continuous blinks detected!</span>
+                                </div>
+                            </div>
+
+                            <div class="action-buttons mt-4">
+                                <button id="dismiss-alert-btn" class="btn btn-danger btn-block pulsing-btn">
+                                    <i class="fa-solid fa-circle-xmark"></i>
+                                    <span>Dismiss & Reset Alarm</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Redesigned Virtual Bulb Card (Glassmorphic Glow, Realistic Reflections) -->
+                    <div class="card bulb-card mt-4 animate-slide-up" style="animation-delay: 0.2s;">
+                        <h3>Virtual Emergency Bulb</h3>
+                        <div class="bulb-container">
+                            <div class="virtual-bulb status-safe" id="virtual-bulb">
+                                <div class="bulb-reflector"></div>
+                                <div class="bulb-glow"></div>
+                            </div>
+                        </div>
+                        <div class="bulb-status-text" id="bulb-status-text">
+                            SYSTEM SECURE
+                        </div>
+                        <p class="bulb-description">Glowing green indicates normal status. Pulsing yellow indicates camera warning. Strobing red indicates emergency blinks.</p>
+                    </div>
+
+                    <!-- Stats Row Column Stack -->
+                    <div class="stats-col-grid mt-4 animate-slide-up" style="animation-delay: 0.3s;">
+                        <div class="stat-card">
+                            <div class="stat-icon"><i class="fa-solid fa-hospital-user"></i></div>
+                            <div class="stat-data">
+                                <span class="num" id="stat-patient-count">2</span>
+                                <span class="lbl">Monitored Patients</span>
+                            </div>
+                        </div>
+                        <div class="stat-card mt-3">
+                            <div class="stat-icon alert-icon"><i class="fa-solid fa-bell"></i></div>
+                            <div class="stat-data">
+                                <span class="num" id="stat-alert-count">0</span>
+                                <span class="lbl">Active Incidents</span>
+                            </div>
+                        </div>
+                        <div class="stat-card mt-3">
+                            <div class="stat-icon safe-icon"><i class="fa-solid fa-heart-pulse"></i></div>
+                            <div class="stat-data">
+                                <span class="num">100%</span>
+                                <span class="lbl">Telemetry Health</span>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+
             </div>
 
             <!-- Quick Instructions -->
@@ -331,7 +407,28 @@
                     </div>
                     
                     <form id="register-patient-form" class="standard-form">
-                        <div class="form-group">
+                        <div class="scan-btn-wrapper">
+                            <button type="button" id="btn-scan-patient" class="btn-scan-eyes btn-block">
+                                <i class="fa-solid fa-face-viewfinder"></i>
+                                <span>Scan Eyes & Auto-Fill Data</span>
+                            </button>
+                        </div>
+                        
+                        <!-- Eye Calibration Results Preview -->
+                        <div id="calibration-results-preview" class="calibration-result-box hidden">
+                            <h5><i class="fa-solid fa-eye"></i> Eye Calibration Metrics</h5>
+                            <div class="calibration-result-grid">
+                                <div class="calibration-item">Baseline EAR: <span id="cal-res-baseline">0.000</span></div>
+                                <div class="calibration-item">Threshold EAR: <span id="cal-res-thresh">0.000</span></div>
+                                <div class="calibration-item">Pupil Distance: <span id="cal-res-pd">0.0 mm</span></div>
+                                <div class="calibration-item">Status: <span style="color: #2dd4bf; font-weight: bold;">Optimal</span></div>
+                            </div>
+                            <input type="hidden" id="cal-ear-threshold" name="ear_threshold" value="0.22">
+                            <input type="hidden" id="cal-baseline-ear" name="baseline_ear" value="0.28">
+                            <input type="hidden" id="cal-pupil-distance" name="pupil_distance" value="60.0">
+                        </div>
+
+                        <div class="form-group mt-3">
                             <label for="reg-patient-id">Patient ID (Unique)</label>
                             <input type="text" id="reg-patient-id" name="patient_id" placeholder="e.g., PT-1002" required>
                         </div>
@@ -527,6 +624,81 @@
         </div>
 
     </main>
+
+    <!-- Eye Calibration Scan Overlay Modal -->
+    <div id="eye-scan-modal" class="scan-overlay-modal">
+        <div class="scan-modal-content">
+            <h3>Biometric Eye Calibration Scan</h3>
+            <p>Please sit straight and look directly at your camera. The system will scan your eye coordinates to automatically compute your baseline threshold and pupil distance.</p>
+            
+            <!-- Active Scanning View -->
+            <div id="scan-active-view">
+                <div class="scan-viewport">
+                    <img id="scan-stream-img" class="scan-viewport-stream" src="" alt="Calibration Stream">
+                    <div class="scan-target-box">
+                        <div class="scan-target-face"></div>
+                        <div class="scan-target-circle eye-l"></div>
+                        <div class="scan-target-circle eye-r"></div>
+                        <div class="scan-horizontal-laser"></div>
+                    </div>
+                </div>
+                
+                <div class="scan-status-text" id="scan-status-text">INITIALIZING CAMERA...</div>
+                
+                <div class="scan-progress-container">
+                    <div class="scan-progress-bar" id="scan-progress-bar"></div>
+                </div>
+                
+                <button type="button" id="btn-cancel-scan" class="scan-cancel-btn">Cancel Calibration</button>
+            </div>
+
+            <!-- Scanned Details Result View -->
+            <div id="scan-result-view" class="hidden">
+                <div class="success-icon-wrapper" style="margin-bottom: 20px;">
+                    <i class="fa-solid fa-circle-check" style="font-size: 3.5rem; color: #2dd4bf; filter: drop-shadow(0 0 10px rgba(45, 212, 191, 0.4));"></i>
+                </div>
+                <h4 style="color: #2dd4bf; font-weight: 600; margin-bottom: 20px;">BIOMETRIC IDENTIFICATION SCAN COMPLETE</h4>
+                
+                <div class="scanned-details-card" style="background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border-glass); border-radius: 16px; padding: 20px; margin-bottom: 25px; text-align: left; display: flex; flex-direction: column; gap: 10px;">
+                    <div style="display: flex; justify-content: space-between; border-bottom: 1px solid rgba(255, 255, 255, 0.05); padding-bottom: 8px;">
+                        <span style="color: var(--text-secondary);">Patient ID:</span>
+                        <strong id="scan-res-id" style="color: var(--text-primary);">PT-EYE-XXXX</strong>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; border-bottom: 1px solid rgba(255, 255, 255, 0.05); padding-bottom: 8px;">
+                        <span style="color: var(--text-secondary);">Full Name:</span>
+                        <strong id="scan-res-name" style="color: var(--text-primary);">John Doe</strong>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; border-bottom: 1px solid rgba(255, 255, 255, 0.05); padding-bottom: 8px;">
+                        <span style="color: var(--text-secondary);">Estimated Age:</span>
+                        <strong id="scan-res-age" style="color: var(--text-primary);">--</strong>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; border-bottom: 1px solid rgba(255, 255, 255, 0.05); padding-bottom: 8px;">
+                        <span style="color: var(--text-secondary);">Assigned Room:</span>
+                        <strong id="scan-res-room" style="color: var(--text-primary);">--</strong>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; border-bottom: 1px solid rgba(255, 255, 255, 0.05); padding-bottom: 8px;">
+                        <span style="color: var(--text-secondary);">Diagnostics:</span>
+                        <strong id="scan-res-condition" style="color: var(--text-primary);">--</strong>
+                    </div>
+                    <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-top: 5px;">
+                        <div style="background: rgba(13, 148, 136, 0.1); border: 1px solid rgba(13, 148, 136, 0.3); border-radius: 8px; padding: 10px; text-align: center;">
+                            <div style="font-size: 0.75rem; color: var(--text-secondary);">Baseline EAR</div>
+                            <strong id="scan-res-base-ear" style="color: #2dd4bf; font-size: 1.1rem;">0.280</strong>
+                        </div>
+                        <div style="background: rgba(6, 182, 212, 0.1); border: 1px solid rgba(6, 182, 212, 0.3); border-radius: 8px; padding: 10px; text-align: center;">
+                            <div style="font-size: 0.75rem; color: var(--text-secondary);">Pupil Distance</div>
+                            <strong id="scan-res-pd-val" style="color: #06b6d4; font-size: 1.1rem;">64.0 mm</strong>
+                        </div>
+                    </div>
+                </div>
+                
+                <button type="button" id="btn-apply-scan" class="btn btn-primary btn-block btn-ripple" style="padding: 12px 0;">
+                    <i class="fa-solid fa-circle-check"></i>
+                    <span>Apply & Close</span>
+                </button>
+            </div>
+        </div>
+    </div>
 
     <!-- Script imports -->
     <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>

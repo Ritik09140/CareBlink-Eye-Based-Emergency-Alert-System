@@ -3,35 +3,41 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CareBlink - Doctor Dashboard</title>
+    <title>CareBlink - Professional Patient Telemetry Portal</title>
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <!-- FontAwesome for Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <!-- Stylesheets -->
+    <!-- Custom Style CSS -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body class="dashboard-body">
-    <!-- Floating Particles Background Overlay -->
-    <div class="particles-container">
-        <div class="particle"></div>
-        <div class="particle"></div>
-        <div class="particle"></div>
-        <div class="particle"></div>
-        <div class="particle"></div>
+    <!-- Toast Notifications Container -->
+    <div class="toast-container position-fixed bottom-0 end-0 p-3" style="z-index: 1080;">
+        <div id="alert-toast" class="toast align-items-center text-white border-0 bg-danger" role="alert" aria-live="assertive" aria-atomic="true">
+            <div class="d-flex">
+                <div class="toast-body">
+                    <i class="fa-solid fa-triangle-exclamation me-2"></i>
+                    <strong id="toast-message">Emergency Alert Triggered!</strong>
+                </div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+            </div>
+        </div>
     </div>
 
-    <!-- Sidebar Navigation -->
+    <!-- Main Sidebar -->
     <aside class="sidebar">
-        <div class="sidebar-header">
-            <!-- Animated CareBlink Logo (Eye + Medical Cross) -->
-            <div class="careblink-logo-wrapper">
-                <span class="logo-eye"><i class="fa-solid fa-eye"></i></span>
-                <span class="logo-cross"><i class="fa-solid fa-plus"></i></span>
+        <div class="sidebar-header d-flex align-items-center gap-3 px-4 py-4">
+            <div class="careblink-logo-wrapper d-inline-flex align-items-center justify-content-center position-relative">
+                <span class="logo-eye"><i class="fa-solid fa-eye text-white fs-4"></i></span>
+                <span class="logo-cross position-absolute"><i class="fa-solid fa-plus fs-6 text-accent"></i></span>
             </div>
-            <h2>Care<span>Blink</span></h2>
+            <h2 class="h4 mb-0 text-white font-weight-bold">Care<span class="text-accent">Blink</span></h2>
         </div>
-        <nav class="sidebar-menu">
+        
+        <nav class="sidebar-menu px-3">
             <a href="#" class="menu-item active" data-tab="live-dashboard">
                 <i class="fa-solid fa-chart-line"></i>
                 <span>Live Monitor</span>
@@ -44,488 +50,410 @@
                 <i class="fa-solid fa-clock-rotate-left"></i>
                 <span>Alert Logs</span>
             </a>
-            
-            <!-- NEW SIDEBAR BUTTON: ALL HOSPITAL RECORDS -->
             <a href="#" class="menu-item" data-tab="hospital-records">
                 <i class="fa-solid fa-hospital"></i>
                 <span>Hospital Records</span>
             </a>
             
-            <!-- Quick Info Panel inside Sidebar -->
-            <div class="sidebar-info-panel">
-                <div class="info-label">Active Core</div>
-                <div class="info-val">v2.5 (Tasks API)</div>
-                <div class="info-label mt-2">DB dialect</div>
-                <div class="info-val" id="sidebar-db-dialect">SQLite (Auto)</div>
+            <hr class="border-secondary border-opacity-25 my-3">
+            
+            <a href="#" class="menu-item" data-tab="doctor-dashboard">
+                <i class="fa-solid fa-user-doctor"></i>
+                <span>Doctor Portal</span>
+            </a>
+            <a href="#" class="menu-item" data-tab="patient-dashboard">
+                <i class="fa-solid fa-bed-pulse"></i>
+                <span>Patient Telemetry</span>
+            </a>
+            <a href="#" class="menu-item text-danger-hover" data-tab="emergency-siren-dashboard">
+                <i class="fa-solid fa-circle-exclamation text-danger"></i>
+                <span>Emergency HUD</span>
+            </a>
+            <a href="#" class="menu-item" data-tab="admin-dashboard">
+                <i class="fa-solid fa-user-shield"></i>
+                <span>Admin Console</span>
+            </a>
+
+            <!-- Quick Engine Diagnostics -->
+            <div class="sidebar-info-panel mt-4 p-3 rounded-3 bg-dark-soft">
+                <div class="info-label small text-secondary">Active Engine</div>
+                <div class="info-val text-white font-mono small">CareBlink Core v3.0</div>
+                <div class="info-label small text-secondary mt-2">Active DB Dialect</div>
+                <div class="info-val text-accent font-mono small" id="sidebar-db-dialect">SQLite (Auto)</div>
             </div>
         </nav>
         
-        <div class="sidebar-footer">
-            <div class="designed-by-sidebar">
-                Designed & Developed by<br>
-                <span>Ritik Khanguda</span>
-            </div>
-            
-            <!-- Doctor Avatar Photo Frame -->
-            <div class="user-profile">
-                <div class="avatar-photo-frame">
-                    <i class="fa-solid fa-hospital doctor-avatar-icon"></i>
+        <div class="sidebar-footer p-3 mt-auto">
+            <div class="user-profile d-flex align-items-center gap-3 p-2 rounded-3 bg-dark-soft mb-3">
+                <div class="avatar-photo-frame rounded-circle bg-accent-soft d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
+                    <i class="fa-solid fa-hospital text-accent"></i>
                 </div>
-                <div class="profile-info">
-                    <span class="profile-name">{{ session.get('hospital_name', 'St. Jude Center') }}</span>
-                    <span class="profile-role">Hospital Operator</span>
+                <div class="profile-info text-start overflow-hidden">
+                    <span class="profile-name text-white font-weight-bold d-block text-truncate small">{{ session.get('hospital_name', 'Default St. Jude') }}</span>
+                    <span class="profile-role text-secondary small d-block" style="font-size: 0.75rem;">Operator Portal</span>
                 </div>
             </div>
             
-            <a href="{{ url_for('logout') }}" class="logout-btn">
+            <a href="{{ url_for('auth.logout') }}" class="btn btn-danger w-100 rounded-3 d-flex align-items-center justify-content-center gap-2 text-white">
                 <i class="fa-solid fa-right-from-bracket"></i>
                 <span>Log Out</span>
             </a>
         </div>
     </aside>
 
-    <!-- Main Content Area -->
-    <main class="main-content">
-        <!-- Top Status Bar -->
-        <header class="top-bar animate-fade-in">
-            <div class="page-title">
-                <h1 id="tab-title">Live Monitor Dashboard</h1>
-                <p id="tab-subtitle" class="text-muted">Real-time patient monitoring feed and status alerts.</p>
+    <!-- Main Content Panel Wrapper -->
+    <main class="main-content flex-grow-1 p-4 overflow-auto">
+        <!-- Top Title Panel -->
+        <header class="top-bar d-flex justify-content-between align-items-center mb-4 pb-3 border-bottom border-secondary border-opacity-10">
+            <div>
+                <h1 class="h3 text-white mb-1" id="tab-title">Live Monitor Dashboard</h1>
+                <p class="text-secondary small mb-0" id="tab-subtitle">Real-time patient monitoring feed and status alerts.</p>
             </div>
-            <div class="top-bar-actions">
-                <button id="sound-toggle-btn" class="action-btn btn-secondary">
+            <div class="d-flex align-items-center gap-3">
+                <button id="sound-toggle-btn" class="btn btn-dark-soft text-white d-flex align-items-center gap-2 py-2 px-3 rounded-3">
                     <i class="fa-solid fa-volume-high"></i>
                     <span>Sound: Enabled</span>
                 </button>
-                <div class="status-badge" id="system-status-badge">
+                <div class="status-badge bg-success-soft text-success px-3 py-2 rounded-3 d-flex align-items-center gap-2" id="system-status-badge">
                     <span class="pulse-dot green"></span>
-                    <span class="status-text">Camera Streaming</span>
+                    <span class="status-text small fw-bold">Camera Online</span>
                 </div>
             </div>
         </header>
 
-        <!-- Dynamic Content Panels -->
-        
-        <!-- Tab 1: Live Monitor Dashboard -->
+        <!-- ========================================== -->
+        <!-- TAB 1: Live Monitor Dashboard -->
+        <!-- ========================================== -->
         <div class="content-panel active" id="live-dashboard-tab">
-            <!-- Welcome Banner -->
-            <div class="card premium-welcome-card animate-fade-in">
-                <div class="welcome-text">
-                    <h2>CareBlink Emergency Command Portal</h2>
-                    <p>Active Terminal: {{ session.get('hospital_name', 'St. Jude Medical Center') }} ({{ session.get('state', 'California') }})</p>
-                </div>
-                <div class="welcome-badge">
-                    Designed & Developed by <span>Ritik Khanguda</span>
-                </div>
-            </div>
-
-            <!-- Main Command Layout Grid -->
-            <div class="live-dashboard-layout mt-4">
-                
-                <!-- LEFT COLUMN: Webcam Stream and Patient Telemetry -->
-                <div class="dashboard-left-col">
-                    
-                    <!-- Redesigned Camera Section (Holographic Scanline Frame Overlay) -->
-                    <div class="card camera-action-card animate-slide-up" style="animation-delay: 0.1s;">
-                        <div class="camera-card-header">
-                            <i class="fa-solid fa-video camera-title-icon"></i>
-                            <div>
-                                <h3>Patient Webcam Stream Controller</h3>
-                                <p class="text-muted">Start or Stop the local Computer Vision patient-monitoring camera tracking script.</p>
-                            </div>
+            <div class="row g-4">
+                <div class="col-lg-8">
+                    <!-- Camera Controller Card -->
+                    <div class="card bg-dark-card border-0 rounded-4 p-4 mb-4">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h3 class="h5 text-white mb-0"><i class="fa-solid fa-video text-accent me-2"></i>Webcam Stream Monitor</h3>
+                            <span class="badge bg-success-soft text-success px-2 py-1 rounded-2" id="dashboard-camera-status">ONLINE</span>
                         </div>
                         
-                        <!-- Holographic Scanning Feed Overlay (Visuals Only) -->
-                        <div class="camera-hologram-frame mt-3">
+                        <!-- Holographic Camera Feed Viewport -->
+                        <div class="camera-hologram-frame position-relative rounded-4 overflow-hidden bg-black" style="aspect-ratio: 16/9; max-height: 420px;">
                             <div class="camera-lens-reflection"></div>
                             <div class="camera-scanner-line"></div>
-                            <div class="camera-corner border-tl"></div>
-                            <div class="camera-corner border-tr"></div>
-                            <div class="camera-corner border-bl"></div>
-                            <div class="camera-corner border-br"></div>
-                            <div class="camera-hud-info">
-                                <span class="hud-item"><i class="fa-solid fa-circle text-danger blink-dot"></i> REC</span>
-                                <span class="hud-item">FPS: 30</span>
-                                <span class="hud-item">RESOLUTION: 720P</span>
+                            <div class="camera-hud-info position-absolute top-0 start-0 p-3 text-white font-mono small d-flex flex-column gap-1" style="z-index: 10;">
+                                <span><i class="fa-solid fa-circle text-danger blink-dot me-1"></i> SCANNING FEED</span>
+                                <span>INFERENCE: MediaPipe Face Mesh</span>
                             </div>
-                            <!-- Real Webcam Stream Image -->
-                            <img id="camera-stream-img" class="camera-stream-video" src="" alt="Webcam Feed" style="width: 100%; height: 100%; object-fit: cover; display: none;">
                             
-                            <div class="camera-feed-placeholder" id="camera-placeholder-box">
-                                <i class="fa-solid fa-circle-notch fa-spin camera-spin"></i>
-                                <span id="camera-placeholder-text">Camera is Offline. Click 'Start Monitor' to begin.</span>
+                            <img id="camera-stream-img" class="w-100 h-100 object-fit-cover d-none" src="" alt="Webcam Feed">
+                            <div class="camera-feed-placeholder w-100 h-100 d-flex flex-column align-items-center justify-content-center text-secondary gap-3" id="camera-placeholder-box">
+                                <i class="fa-solid fa-circle-notch fa-spin fs-2 text-accent"></i>
+                                <span id="camera-placeholder-text">Camera stream is offline. Click Start below.</span>
                             </div>
                         </div>
 
-                        <div class="camera-btn-row mt-4">
-                            <div class="patient-select-wrapper" style="display: flex; flex-direction: column; gap: 4px;">
-                                <span style="font-size: 0.75rem; color: var(--text-secondary); font-weight: 500;">Select Patient to Monitor</span>
-                                <select id="monitor-patient-select" style="background: var(--bg-secondary); color: var(--text-primary); border: 1px solid var(--border-glass); padding: 11px 16px; border-radius: 10px; font-family: var(--font-main); font-size: 14px; outline: none; cursor: pointer; min-width: 220px; transition: var(--transition-smooth); border-color: rgba(255, 255, 255, 0.15);">
-                                    <!-- Populated dynamically from script -->
+                        <!-- Stream Action Controllers -->
+                        <div class="row g-3 align-items-end mt-3">
+                            <div class="col-md-6 text-start">
+                                <label for="monitor-patient-select" class="form-label text-secondary small fw-bold">Select Active Patient</label>
+                                <select id="monitor-patient-select" class="form-select bg-dark-soft border-0 text-white rounded-3 py-2 px-3 shadow-none">
+                                    <!-- Populated dynamically -->
                                 </select>
                             </div>
-                            <button id="dashboard-camera-start" class="btn btn-primary btn-ripple">
-                                <i class="fa-solid fa-play"></i>
-                                <span>Start Monitor Camera</span>
-                            </button>
-                            <button id="dashboard-camera-stop" class="btn btn-danger btn-ripple">
-                                <i class="fa-solid fa-stop"></i>
-                                <span>Stop Monitor Camera</span>
-                            </button>
-                            
-                            <div class="camera-live-badge-box">
-                                <span class="camera-status-label">Stream Status:</span>
-                                <span id="dashboard-camera-status" class="camera-badge running">
-                                    <span class="indicator-dot"></span>
-                                    <span class="text">ONLINE</span>
-                                </span>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Patient Diagnostics & Telemetry Card -->
-                    <div class="card telemetry-metrics-card mt-4 animate-slide-up" style="animation-delay: 0.2s;">
-                        <h3>Monitored Patient Telemetry</h3>
-                        <p class="text-muted mb-4">Real-time eye geometry parameters and biometrics of the monitored patient.</p>
-                        
-                        <div class="telemetry-grid">
-                            <div class="telemetry-item">
-                                <span class="label">Patient Name:</span>
-                                <span class="value" id="tele-patient-name">Arthur Dent</span>
-                            </div>
-                            <div class="telemetry-item">
-                                <span class="label">Patient ID:</span>
-                                <span class="value font-mono" id="tele-patient-id">PT-2045</span>
-                            </div>
-                            <div class="telemetry-item">
-                                <span class="label">Age / Room:</span>
-                                <span class="value" id="tele-patient-room">42 / Room 101</span>
-                            </div>
-                            <div class="telemetry-item">
-                                <span class="label">Medical Condition:</span>
-                                <span class="value" id="tele-patient-condition">Locked-in Syndrome</span>
-                            </div>
-                            <div class="telemetry-item">
-                                <span class="label">Baseline EAR:</span>
-                                <span class="value font-mono" id="tele-ear-base">0.280</span>
-                            </div>
-                            <div class="telemetry-item">
-                                <span class="label">Current EAR:</span>
-                                <span class="value font-mono" id="tele-ear-current">0.000</span>
-                            </div>
-                            <div class="telemetry-item">
-                                <span class="label">EAR Threshold:</span>
-                                <span class="value font-mono" id="tele-ear-thresh">0.220</span>
-                            </div>
-                            <div class="telemetry-item">
-                                <span class="label">Est. Pupil Dist:</span>
-                                <span class="value font-mono" id="tele-pupil-dist">60.0 mm</span>
-                            </div>
-                            <div class="telemetry-item">
-                                <span class="label">Current PD:</span>
-                                <span class="value font-mono" id="tele-current-pd">60.0 mm</span>
-                            </div>
-                            <div class="telemetry-item">
-                                <span class="label">Gaze Position:</span>
-                                <span class="value font-mono highlight" id="tele-gaze-pos" style="color: #2dd4bf;">CENTER</span>
-                            </div>
-                            <div class="telemetry-item">
-                                <span class="label">Blinks (5s):</span>
-                                <span class="value highlight" id="tele-blinks-count">0</span>
-                            </div>
-                            <div class="telemetry-item">
-                                <span class="label">Status:</span>
-                                <span class="status-badge-inline safe" id="tele-system-status">NORMAL</span>
-                            </div>
-                        </div>
-                    </div>
-
-                </div>
-
-                <!-- RIGHT COLUMN: Active Monitor Status, Virtual Bulb and Stats -->
-                <div class="dashboard-right-col">
-                    
-                    <!-- Active Patient Monitor Status -->
-                    <div class="card active-monitor-card animate-slide-up" style="animation-delay: 0.1s;">
-                        <div class="card-header">
-                            <h3>Current Alert Status</h3>
-                            <span class="badge" id="alert-badge">NORMAL</span>
-                        </div>
-
-                        <div class="alert-content-wrapper" id="normal-state-view">
-                            <div class="status-icon-box safe">
-                                <i class="fa-solid fa-circle-check animate-pulse-green"></i>
-                            </div>
-                            <h4>No Active Emergencies</h4>
-                            <p class="text-muted">All monitored rooms are currently reporting stable blink patterns. The Computer Vision detector is active.</p>
-                            
-                            <div class="system-logs-preview">
-                                <div class="preview-header">Monitoring System Info:</div>
-                                <ul>
-                                    <li><i class="fa-solid fa-circle-notch fa-spin"></i> CV Engine: Running</li>
-                                    <li><i class="fa-solid fa-database"></i> Database Connect: Active</li>
-                                    <li><i class="fa-solid fa-microchip"></i> Ear Aspect Ratio threshold: 0.22</li>
-                                </ul>
-                            </div>
-                        </div>
-
-                        <div class="alert-content-wrapper hidden" id="emergency-state-view">
-                            <div class="siren-alert-banner">
-                                <i class="fa-solid fa-truck-medical siren-icon"></i>
-                                <div>
-                                    <h4>PATIENT EMERGENCY ALARM</h4>
-                                    <p id="emergency-time">Triggered just now</p>
-                                </div>
-                            </div>
-
-                            <!-- Active Patient Details -->
-                            <div class="patient-details-box">
-                                <div class="detail-row">
-                                    <span class="label">Patient Name:</span>
-                                    <span class="value" id="emg-patient-name">Arthur Dent</span>
-                                </div>
-                                <div class="detail-row">
-                                    <span class="label">ID / Room:</span>
-                                    <span class="value" id="emg-patient-room">PT-2045 / Room 101</span>
-                                </div>
-                                <div class="detail-row">
-                                    <span class="label">Condition:</span>
-                                    <span class="value" id="emg-patient-condition">Locked-in Syndrome</span>
-                                </div>
-                                <div class="detail-row">
-                                    <span class="label">Trigger Signal:</span>
-                                    <span class="value alert-text" id="emg-message">5 continuous blinks detected!</span>
-                                </div>
-                            </div>
-
-                            <div class="action-buttons mt-4">
-                                <button id="dismiss-alert-btn" class="btn btn-danger btn-block pulsing-btn">
-                                    <i class="fa-solid fa-circle-xmark"></i>
-                                    <span>Dismiss & Reset Alarm</span>
+                            <div class="col-md-6 d-flex gap-2 justify-content-end">
+                                <button id="dashboard-camera-start" class="btn btn-accent py-2 px-4 rounded-3 text-white">
+                                    <i class="fa-solid fa-play me-1"></i> Start
+                                </button>
+                                <button id="dashboard-camera-stop" class="btn btn-danger py-2 px-4 rounded-3 text-white">
+                                    <i class="fa-solid fa-stop me-1"></i> Stop
                                 </button>
                             </div>
                         </div>
                     </div>
 
-                    <!-- Redesigned Virtual Bulb Card (Glassmorphic Glow, Realistic Reflections) -->
-                    <div class="card bulb-card mt-4 animate-slide-up" style="animation-delay: 0.2s;">
-                        <h3>Virtual Emergency Bulb</h3>
-                        <div class="bulb-container">
-                            <div class="virtual-bulb status-safe" id="virtual-bulb">
+                    <!-- Telemetry Parameters -->
+                    <div class="card bg-dark-card border-0 rounded-4 p-4">
+                        <h3 class="h5 text-white mb-4"><i class="fa-solid fa-heart-pulse text-accent me-2"></i>Biometric Eye Telemetry</h3>
+                        <div class="row g-3">
+                            <div class="col-sm-6 col-md-4">
+                                <div class="bg-dark-soft p-3 rounded-3 text-start">
+                                    <span class="text-secondary small d-block">Patient Name</span>
+                                    <strong class="text-white d-block text-truncate" id="tele-patient-name">Arthur Dent</strong>
+                                </div>
+                            </div>
+                            <div class="col-sm-6 col-md-4">
+                                <div class="bg-dark-soft p-3 rounded-3 text-start">
+                                    <span class="text-secondary small d-block">Patient ID</span>
+                                    <strong class="text-white font-mono d-block" id="tele-patient-id">PT-2045</strong>
+                                </div>
+                            </div>
+                            <div class="col-sm-6 col-md-4">
+                                <div class="bg-dark-soft p-3 rounded-3 text-start">
+                                    <span class="text-secondary small d-block">Room No.</span>
+                                    <strong class="text-white d-block" id="tele-patient-room">Room 101</strong>
+                                </div>
+                            </div>
+                            <div class="col-sm-6 col-md-4">
+                                <div class="bg-dark-soft p-3 rounded-3 text-start">
+                                    <span class="text-secondary small d-block">Baseline EAR</span>
+                                    <strong class="text-white font-mono d-block" id="tele-ear-base">0.280</strong>
+                                </div>
+                            </div>
+                            <div class="col-sm-6 col-md-4">
+                                <div class="bg-dark-soft p-3 rounded-3 text-start">
+                                    <span class="text-secondary small d-block">Current EAR</span>
+                                    <strong class="text-white font-mono d-block" id="tele-ear-current">0.000</strong>
+                                </div>
+                            </div>
+                            <div class="col-sm-6 col-md-4">
+                                <div class="bg-dark-soft p-3 rounded-3 text-start">
+                                    <span class="text-secondary small d-block">EAR Threshold</span>
+                                    <strong class="text-white font-mono d-block" id="tele-ear-thresh">0.220</strong>
+                                </div>
+                            </div>
+                            <div class="col-sm-6 col-md-4">
+                                <div class="bg-dark-soft p-3 rounded-3 text-start">
+                                    <span class="text-secondary small d-block">Est. Pupil Distance</span>
+                                    <strong class="text-white font-mono d-block" id="tele-pupil-dist">60.0 mm</strong>
+                                </div>
+                            </div>
+                            <div class="col-sm-6 col-md-4">
+                                <div class="bg-dark-soft p-3 rounded-3 text-start">
+                                    <span class="text-secondary small d-block">Gaze Vector</span>
+                                    <strong class="text-accent font-mono d-block" id="tele-gaze-pos">CENTER</strong>
+                                </div>
+                            </div>
+                            <div class="col-sm-6 col-md-4">
+                                <div class="bg-dark-soft p-3 rounded-3 text-start">
+                                    <span class="text-secondary small d-block">Rapid Blinks (5s)</span>
+                                    <strong class="text-danger font-mono d-block" id="tele-blinks-count">0</strong>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Neural Thoughts Decoded banner -->
+                        <div class="mt-4 p-3 rounded-3 border border-accent border-opacity-20 bg-accent-soft text-start">
+                            <span class="text-accent small d-block mb-1"><i class="fa-solid fa-brain me-1"></i>Neural Thought Decoder (Mind Scan)</span>
+                            <h4 class="h5 text-white mb-0" id="tele-mind-thoughts">Calm and resting...</h4>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-lg-4">
+                    <!-- Alarm Siren Alert view -->
+                    <div class="card bg-dark-card border-0 rounded-4 p-4 mb-4">
+                        <h3 class="h5 text-white mb-4">Current Incident Status</h3>
+                        
+                        <!-- Safe mode panel -->
+                        <div id="normal-state-view" class="text-center py-4">
+                            <div class="text-success fs-1 mb-3">
+                                <i class="fa-solid fa-shield-heart animate-pulse"></i>
+                            </div>
+                            <h4 class="h6 text-white fw-bold">Monitoring Active</h4>
+                            <p class="text-secondary small">No active patient emergencies reported. Diagnostic tracking loops are operating normally.</p>
+                        </div>
+                        
+                        <!-- Danger Alert Panel -->
+                        <div id="emergency-state-view" class="d-none text-start p-3 bg-danger-soft rounded-3 border border-danger border-opacity-30">
+                            <div class="d-flex align-items-center gap-3 text-danger mb-3">
+                                <i class="fa-solid fa-truck-medical fs-3 siren-icon"></i>
+                                <div>
+                                    <h4 class="h6 mb-0 fw-bold">PATIENT EMERGENCY ALERT</h4>
+                                    <span class="small font-mono text-danger-soft" id="emergency-time">Triggered just now</span>
+                                </div>
+                            </div>
+                            
+                            <div class="mb-3 text-white small">
+                                <div class="mb-1"><strong>Name:</strong> <span id="emg-patient-name">Sarah Connor</span></div>
+                                <div class="mb-1"><strong>Location:</strong> <span id="emg-patient-room">Room 304</span></div>
+                                <div><strong>Trigger Reason:</strong> <span id="emg-message">5 rapid eye blinks detected</span></div>
+                            </div>
+                            
+                            <div class="mb-4 p-2 bg-dark rounded text-danger small">
+                                <strong>Mind Scan:</strong> <span id="emg-mind-thoughts">Urgent support requested!</span>
+                            </div>
+                            
+                            <button id="dismiss-alert-btn" class="btn btn-danger w-100 py-3 rounded-3 fw-bold pulsing-btn">
+                                <i class="fa-solid fa-circle-xmark me-2"></i> Dismiss Alarm
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Virtual LED indicator bulb -->
+                    <div class="card bg-dark-card border-0 rounded-4 p-4 mb-4 text-center">
+                        <h3 class="h5 text-white mb-4 text-start">Virtual Console Light</h3>
+                        <div class="bulb-container d-inline-flex justify-content-center mb-3">
+                            <div id="virtual-bulb" class="virtual-bulb status-safe">
                                 <div class="bulb-reflector"></div>
                                 <div class="bulb-glow"></div>
                             </div>
                         </div>
-                        <div class="bulb-status-text" id="bulb-status-text">
-                            SYSTEM SECURE
-                        </div>
-                        <p class="bulb-description">Glowing green indicates normal status. Pulsing yellow indicates camera warning. Strobing red indicates emergency blinks.</p>
+                        <h4 class="h6 text-white font-mono mb-2" id="bulb-status-text">SYSTEM SECURE</h4>
+                        <p class="text-secondary small mb-0">Visual beacon mapping real-time alert states: Green (Secure), Amber (Camera Offline), flashing Red (Emergency code triggered).</p>
                     </div>
 
-                    <!-- Stats Row Column Stack -->
-                    <div class="stats-col-grid mt-4 animate-slide-up" style="animation-delay: 0.3s;">
-                        <div class="stat-card">
-                            <div class="stat-icon"><i class="fa-solid fa-hospital-user"></i></div>
-                            <div class="stat-data">
-                                <span class="num" id="stat-patient-count">2</span>
-                                <span class="lbl">Monitored Patients</span>
+                    <!-- Shift Statistics Summary -->
+                    <div class="card bg-dark-card border-0 rounded-4 p-4">
+                        <h3 class="h5 text-white mb-4 text-start">Portal Statistics</h3>
+                        <div class="d-flex flex-column gap-3">
+                            <div class="d-flex justify-content-between align-items-center bg-dark-soft p-3 rounded-3 text-start">
+                                <div class="d-flex align-items-center gap-3">
+                                    <i class="fa-solid fa-hospital-user text-accent"></i>
+                                    <div>
+                                        <span class="text-secondary small d-block">Patients</span>
+                                        <strong class="text-white" id="stat-patient-count">2</strong>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="d-flex justify-content-between align-items-center bg-dark-soft p-3 rounded-3 text-start">
+                                <div class="d-flex align-items-center gap-3">
+                                    <i class="fa-solid fa-bell text-danger"></i>
+                                    <div>
+                                        <span class="text-secondary small d-block">Incidents Logged</span>
+                                        <strong class="text-white" id="stat-alert-count">0</strong>
+                                    </div>
+                                </div>
                             </div>
                         </div>
-                        <div class="stat-card mt-3">
-                            <div class="stat-icon alert-icon"><i class="fa-solid fa-bell"></i></div>
-                            <div class="stat-data">
-                                <span class="num" id="stat-alert-count">0</span>
-                                <span class="lbl">Active Incidents</span>
-                            </div>
-                        </div>
-                        <div class="stat-card mt-3">
-                            <div class="stat-icon safe-icon"><i class="fa-solid fa-heart-pulse"></i></div>
-                            <div class="stat-data">
-                                <span class="num">100%</span>
-                                <span class="lbl">Telemetry Health</span>
-                            </div>
-                        </div>
-                    </div>
-
-                </div>
-
-            </div>
-
-            <!-- Quick Instructions -->
-            <div class="card tutorial-card mt-4 animate-slide-up" style="animation-delay: 0.4s;">
-                <div class="tutorial-header">
-                    <i class="fa-solid fa-book-medical"></i>
-                    <h3>How CareBlink Eye Tracking Works</h3>
-                </div>
-                <div class="tutorial-grid">
-                    <div class="step">
-                        <div class="step-num">1</div>
-                        <h5>Eye Detection</h5>
-                        <p>Webcam records video. MediaPipe Face Mesh localizes eye contours (6 key facial landmarks per eye) in real time.</p>
-                    </div>
-                    <div class="step">
-                        <div class="step-num">2</div>
-                        <h5>Calculate EAR</h5>
-                        <p>Computer Vision computes the Eye Aspect Ratio (EAR). When eyes close, EAR drops significantly below 0.22.</p>
-                    </div>
-                    <div class="step">
-                        <div class="step-num">3</div>
-                        <h5>Count Blinks</h5>
-                        <p>A closed-to-open transition increases the blink count. 5 blinks in &le; 5 seconds initiates the API dispatch.</p>
-                    </div>
-                    <div class="step">
-                        <div class="step-num">4</div>
-                        <h5>Dashboard Alert</h5>
-                        <p>Flask handles the request, inserts it into MySQL, and broadcasts the alert. Browser plays buzzer beep synthetically.</p>
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- Tab 2: Patients Registry -->
+        <!-- ========================================== -->
+        <!-- TAB 2: Patients Registry -->
+        <!-- ========================================== -->
         <div class="content-panel" id="patient-records-tab">
-            <!-- Premium Welcome Banner (Sub-page) -->
-            <div class="card premium-welcome-card animate-fade-in">
-                <div class="welcome-text">
-                    <h2>Patients Directory & Management</h2>
-                    <p>Configure patient profile records and bed tracking parameters.</p>
-                </div>
-                <div class="welcome-badge">
-                    Designed & Developed by <span>Ritik Khanguda</span>
-                </div>
-            </div>
+            <div class="row g-4">
+                <div class="col-lg-4">
+                    <div class="card bg-dark-card border-0 rounded-4 p-4 text-start">
+                        <h3 class="h5 text-white mb-3">Register Patient Profile</h3>
+                        <p class="text-secondary small mb-4">Complete calibration or enter coordinates manually to add a patient file.</p>
+                        
+                        <div id="registration-feedback" class="alert alert-success d-none" role="alert">
+                            Patient details loaded.
+                        </div>
 
-            <div class="dashboard-grid mt-4">
-                <!-- Registration Form -->
-                <div class="card animate-slide-up" style="animation-delay: 0.1s;">
-                    <h3>Add New Patient Profile</h3>
-                    <p class="text-muted mb-4">Register a new patient to enable system tracking for their eye-blink alert codes.</p>
-                    
-                    <div id="registration-feedback" class="alert-box alert-success hidden">
-                        <i class="fa-solid fa-circle-check"></i>
-                        <span>Patient profile added successfully!</span>
+                        <!-- Calibration Scan Modal Trigger -->
+                        <button type="button" id="btn-scan-patient" class="btn btn-accent w-100 py-3 rounded-3 text-white fw-bold mb-4">
+                            <i class="fa-solid fa-face-viewfinder me-2"></i> Scan Eyes & Auto-Fill
+                        </button>
+
+                        <form id="register-patient-form" class="text-start">
+                            <!-- Calibration Results hidden properties -->
+                            <div id="calibration-results-preview" class="d-none mb-4 p-3 bg-dark-soft rounded-3 border border-accent border-opacity-20">
+                                <span class="text-accent small fw-bold d-block mb-2">Calibration Baseline Metrics</span>
+                                <div class="row g-2 text-white small">
+                                    <div class="col-6">Base EAR: <strong id="cal-res-baseline">0.280</strong></div>
+                                    <div class="col-6">Threshold: <strong id="cal-res-thresh">0.220</strong></div>
+                                    <div class="col-12">Pupil Dist: <strong id="cal-res-pd">60.0 mm</strong></div>
+                                </div>
+                                <input type="hidden" id="cal-ear-threshold" name="ear_threshold" value="0.22">
+                                <input type="hidden" id="cal-baseline-ear" name="baseline_ear" value="0.28">
+                                <input type="hidden" id="cal-pupil-distance" name="pupil_distance" value="60.0">
+                                <input type="hidden" id="cal-mind-thoughts" name="mind_thoughts" value="Calm and resting.">
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="reg-patient-id" class="form-label text-secondary small fw-bold">Patient ID (Unique)</label>
+                                <input type="text" id="reg-patient-id" class="form-control bg-dark-soft border-0 text-white rounded-3 py-2 px-3 shadow-none" placeholder="e.g. PT-4001" required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="reg-name" class="form-label text-secondary small fw-bold">Full Name</label>
+                                <input type="text" id="reg-name" class="form-control bg-dark-soft border-0 text-white rounded-3 py-2 px-3 shadow-none" placeholder="e.g. Jane Doe" required>
+                            </div>
+                            <div class="row g-3 mb-3">
+                                <div class="col-6">
+                                    <label for="reg-age" class="form-label text-secondary small fw-bold">Age</label>
+                                    <input type="number" id="reg-age" class="form-control bg-dark-soft border-0 text-white rounded-3 py-2 px-3 shadow-none" min="1" max="120" placeholder="e.g. 45" required>
+                                </div>
+                                <div class="col-6">
+                                    <label for="reg-room" class="form-label text-secondary small fw-bold">Room / Bed</label>
+                                    <input type="text" id="reg-room" class="form-control bg-dark-soft border-0 text-white rounded-3 py-2 px-3 shadow-none" placeholder="e.g. Bed 2-A" required>
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <label for="reg-condition" class="form-label text-secondary small fw-bold">Medical Condition</label>
+                                <input type="text" id="reg-condition" class="form-control bg-dark-soft border-0 text-white rounded-3 py-2 px-3 shadow-none" placeholder="e.g. Quadriplegia" required>
+                            </div>
+                            <div class="mb-4">
+                                <label for="reg-mind-thoughts" class="form-label text-secondary small fw-bold">Current Neural thoughts</label>
+                                <input type="text" id="reg-mind-thoughts" class="form-control bg-dark-soft border-0 text-white rounded-3 py-2 px-3 shadow-none" placeholder="e.g. Resting peacefully" required>
+                            </div>
+                            
+                            <button type="submit" class="btn btn-accent w-100 py-3 rounded-3 text-white fw-bold">
+                                <i class="fa-solid fa-floppy-disk me-2"></i> Register Patient
+                            </button>
+                        </form>
                     </div>
-                    
-                    <form id="register-patient-form" class="standard-form">
-                        <div class="scan-btn-wrapper">
-                            <button type="button" id="btn-scan-patient" class="btn-scan-eyes btn-block">
-                                <i class="fa-solid fa-face-viewfinder"></i>
-                                <span>Scan Eyes & Auto-Fill Data</span>
+                </div>
+
+                <div class="col-lg-8 text-start">
+                    <div class="card bg-dark-card border-0 rounded-4 p-4">
+                        <div class="d-flex justify-content-between align-items-center mb-4">
+                            <h3 class="h5 text-white mb-0">Patient Registry Database</h3>
+                            <button id="export-patients-btn" class="btn btn-dark-soft text-white d-flex align-items-center gap-2 py-2 px-3 rounded-3">
+                                <i class="fa-solid fa-file-export text-accent"></i> Export Registry
                             </button>
                         </div>
                         
-                        <!-- Eye Calibration Results Preview -->
-                        <div id="calibration-results-preview" class="calibration-result-box hidden">
-                            <h5><i class="fa-solid fa-eye"></i> Eye Calibration Metrics</h5>
-                            <div class="calibration-result-grid">
-                                <div class="calibration-item">Baseline EAR: <span id="cal-res-baseline">0.000</span></div>
-                                <div class="calibration-item">Threshold EAR: <span id="cal-res-thresh">0.000</span></div>
-                                <div class="calibration-item">Pupil Distance: <span id="cal-res-pd">0.0 mm</span></div>
-                                <div class="calibration-item">Status: <span style="color: #2dd4bf; font-weight: bold;">Optimal</span></div>
-                            </div>
-                            <input type="hidden" id="cal-ear-threshold" name="ear_threshold" value="0.22">
-                            <input type="hidden" id="cal-baseline-ear" name="baseline_ear" value="0.28">
-                            <input type="hidden" id="cal-pupil-distance" name="pupil_distance" value="60.0">
+                        <div class="table-responsive rounded-3 overflow-hidden">
+                            <table class="table table-dark table-striped mb-0 text-start alignment" id="patients-table">
+                                <thead>
+                                    <tr class="table-dark-header">
+                                        <th class="py-3 px-4">Patient ID</th>
+                                        <th class="py-3 px-4">Name</th>
+                                        <th class="py-3 px-4">Age</th>
+                                        <th class="py-3 px-4">Room/Bed</th>
+                                        <th class="py-3 px-4">Diagnosis</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td colspan="5" class="py-4 text-center text-secondary">Loading patient records...</td>
+                                    </tr>
+                                </tbody>
+                            </table>
                         </div>
-
-                        <div class="form-group mt-3">
-                            <label for="reg-patient-id">Patient ID (Unique)</label>
-                            <input type="text" id="reg-patient-id" name="patient_id" placeholder="e.g., PT-1002" required>
-                        </div>
-                        <div class="form-group">
-                            <label for="reg-name">Full Name</label>
-                            <input type="text" id="reg-name" name="name" placeholder="e.g., John Smith" required>
-                        </div>
-                        <div class="form-row">
-                            <div class="form-group col-6">
-                                <label for="reg-age">Age</label>
-                                <input type="number" id="reg-age" name="age" min="1" max="120" placeholder="e.g., 54" required>
-                            </div>
-                            <div class="form-group col-6">
-                                <label for="reg-room">Room / Bed No.</label>
-                                <input type="text" id="reg-room" name="room_number" placeholder="e.g., Room 202-B" required>
-                            </div>
-                        </div>
-                        <div class="form-group">
-                            <label for="reg-condition">Medical Condition</label>
-                            <input type="text" id="reg-condition" name="medical_condition" placeholder="e.g., Locked-in Syndrome, Stroke Recovery" required>
-                        </div>
-                        <button type="submit" class="btn btn-primary btn-block btn-ripple">
-                            <i class="fa-solid fa-user-plus"></i>
-                            <span>Register Patient</span>
-                        </button>
-                    </form>
-                </div>
-
-                <!-- Patient Directory Table -->
-                <div class="card animate-slide-up" style="animation-delay: 0.2s;">
-                    <h3>Patient Database</h3>
-                    <p class="text-muted mb-4">List of registered patients eligible for alert dispatching.</p>
-                    
-                    <div class="table-wrapper">
-                        <table class="data-table" id="patients-table">
-                            <thead>
-                                <tr>
-                                    <th>ID</th>
-                                    <th>Name</th>
-                                    <th>Age</th>
-                                    <th>Room</th>
-                                    <th>Diagnosis</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <tr>
-                                    <td colspan="5" class="text-center text-muted">Loading patient list...</td>
-                                </tr>
-                            </tbody>
-                        </table>
                     </div>
                 </div>
-
             </div>
         </div>
 
-        <!-- Tab 3: Alert History -->
+        <!-- ========================================== -->
+        <!-- TAB 3: Alert History Logs -->
+        <!-- ========================================== -->
         <div class="content-panel" id="alert-history-tab">
-            <!-- Premium Welcome Banner (Sub-page) -->
-            <div class="card premium-welcome-card animate-fade-in">
-                <div class="welcome-text">
-                    <h2>Emergency Alarm History Archive</h2>
-                    <p>Detailed incident reports and audit trails for clinical reviews.</p>
-                </div>
-                <div class="welcome-badge">
-                    Designed & Developed by <span>Ritik Khanguda</span>
-                </div>
-            </div>
-
-            <div class="card mt-4 animate-slide-up" style="animation-delay: 0.1s;">
-                <div class="card-header-flex">
+            <div class="card bg-dark-card border-0 rounded-4 p-4 text-start">
+                <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
                     <div>
-                        <h3>Emergency Incident Logs</h3>
-                        <p class="text-muted">Historical records of eye-blink alerts triggered by patients.</p>
+                        <h3 class="h5 text-white mb-1">Incident Alarm Archive</h3>
+                        <p class="text-secondary small mb-0">Search and audit chronological emergency calls triggered across the ward.</p>
                     </div>
-                    <button id="refresh-history-btn" class="action-btn btn-ripple">
-                        <i class="fa-solid fa-arrows-rotate"></i>
-                        <span>Refresh Logs</span>
-                    </button>
+                    <div class="d-flex gap-2">
+                        <button id="export-logs-btn" class="btn btn-dark-soft text-white d-flex align-items-center gap-2 py-2 px-3 rounded-3">
+                            <i class="fa-solid fa-file-export text-accent"></i> Export Excel
+                        </button>
+                        <button id="refresh-history-btn" class="btn btn-accent py-2 px-3 rounded-3 text-white">
+                            <i class="fa-solid fa-arrows-rotate me-1"></i> Refresh
+                        </button>
+                    </div>
                 </div>
 
-                <div class="table-wrapper mt-4">
-                    <table class="data-table" id="history-table">
+                <div class="table-responsive rounded-3 overflow-hidden">
+                    <table class="table table-dark table-striped mb-0 text-start alignment" id="history-table">
                         <thead>
-                            <tr>
-                                <th>Timestamp</th>
-                                <th>Patient ID</th>
-                                <th>Patient Name</th>
-                                <th>Room</th>
-                                <th>Message</th>
-                                <th>Status</th>
-                                <th>Resolution Time</th>
+                            <tr class="table-dark-header">
+                                <th class="py-3 px-4">Timestamp</th>
+                                <th class="py-3 px-4">Patient ID</th>
+                                <th class="py-3 px-4">Patient Name</th>
+                                <th class="py-3 px-4">Room/Bed</th>
+                                <th class="py-3 px-4">Alert Details</th>
+                                <th class="py-3 px-4">Status</th>
+                                <th class="py-3 px-4">Resolution Time</th>
                             </tr>
                         </thead>
                         <tbody>
                             <tr>
-                                <td colspan="7" class="text-center text-muted">Loading incident history...</td>
+                                <td colspan="7" class="py-4 text-center text-secondary">Loading history logs...</td>
                             </tr>
                         </tbody>
                     </table>
@@ -533,108 +461,283 @@
             </div>
         </div>
 
-        <!-- NEW TAB PANEL: ALL HOSPITAL RECORDS (Hospital-wise separation) -->
+        <!-- ========================================== -->
+        <!-- TAB 4: Hospital Records and Video Telemetry Clips -->
+        <!-- ========================================== -->
         <div class="content-panel" id="hospital-records-tab">
-            <!-- Welcome Banner -->
-            <div class="card premium-welcome-card animate-fade-in">
-                <div class="welcome-text">
-                    <h2 id="hosp-records-title">Hospital Records</h2>
-                    <p id="hosp-records-subtitle">Isolated medical registries and monitoring archives for your facility.</p>
-                </div>
-                <div class="welcome-badge">
-                    Designed & Developed by <span>Ritik Khanguda</span>
-                </div>
-            </div>
-
-            <!-- Dynamic Hospital Profile & Logs Layout -->
-            <div class="hospital-records-wrapper mt-4 animate-slide-up" style="animation-delay: 0.1s;">
-                <div class="hospital-grid-layout">
-                    
-                    <!-- Hospital Info Card -->
-                    <div class="card facility-info-card">
-                        <div class="facility-header">
-                            <div class="facility-icon"><i class="fa-solid fa-hospital"></i></div>
+            <div class="row g-4">
+                <div class="col-lg-4 text-start">
+                    <div class="card bg-dark-card border-0 rounded-4 p-4 text-start">
+                        <div class="d-flex align-items-center gap-3 mb-4">
+                            <div class="bg-accent-soft p-3 rounded-3 text-accent fs-3">
+                                <i class="fa-solid fa-hospital"></i>
+                            </div>
                             <div>
-                                <h4 id="hosp-profile-name">Hospital Name</h4>
-                                <p class="text-muted" id="hosp-profile-state">State/Region</p>
+                                <h4 class="h5 text-white mb-0" id="hosp-profile-name">St. Jude Medical Center</h4>
+                                <span class="text-secondary small" id="hosp-profile-state">California</span>
                             </div>
                         </div>
-                        <div class="facility-details mt-4">
-                            <div class="detail-row">
-                                <span class="label">Assigned Patients:</span>
-                                <span class="value font-weight-bold text-accent" id="hosp-profile-patients-count">0 Patients</span>
+                        <div class="d-flex flex-column gap-3">
+                            <div class="d-flex justify-content-between p-3 rounded-3 bg-dark-soft">
+                                <span class="text-secondary small">Total Registered:</span>
+                                <strong class="text-accent" id="hosp-profile-patients-count">0 Patients</strong>
                             </div>
-                            <div class="detail-row">
-                                <span class="label">Alert Recordings:</span>
-                                <span class="value font-weight-bold text-danger" id="hosp-profile-alerts-count">0 Incidents</span>
+                            <div class="d-flex justify-content-between p-3 rounded-3 bg-dark-soft">
+                                <span class="text-secondary small">Alert Events:</span>
+                                <strong class="text-danger" id="hosp-profile-alerts-count">0 Incidents</strong>
                             </div>
                         </div>
                     </div>
+                </div>
 
-                    <!-- Patients List Table -->
-                    <div class="card facility-patients-card">
-                        <h4>Patients Registry</h4>
-                        <p class="text-muted mb-3">All patients registered under your facility.</p>
-                        <div class="table-wrapper">
-                            <table class="data-table" id="hosp-patients-table">
+                <div class="col-lg-8 text-start">
+                    <div class="card bg-dark-card border-0 rounded-4 p-4 mb-4">
+                        <h4 class="h5 text-white mb-3">Facility Patient Registry</h4>
+                        <div class="table-responsive rounded-3 overflow-hidden">
+                            <table class="table table-dark table-striped mb-0 text-start alignment" id="hosp-patients-table">
                                 <thead>
-                                    <tr>
-                                        <th>Patient ID</th>
-                                        <th>Name</th>
-                                        <th>Room</th>
-                                        <th>Diagnosis</th>
+                                    <tr class="table-dark-header">
+                                        <th class="py-3 px-4">Patient ID</th>
+                                        <th class="py-3 px-4">Name</th>
+                                        <th class="py-3 px-4">Room/Bed</th>
+                                        <th class="py-3 px-4">Diagnosis</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     <tr>
-                                        <td colspan="4" class="text-center text-muted">No patients registered.</td>
+                                        <td colspan="4" class="py-4 text-center text-secondary">No patients registered.</td>
                                     </tr>
                                 </tbody>
                             </table>
                         </div>
                     </div>
 
-                    <!-- Video Records Card (ALERT VIDEOS WITH MESSAGES) -->
-                    <div class="card" style="grid-column: span 2;">
-                        <h4>Recorded Emergency Incidents & Telemetry Videos</h4>
-                        <p class="text-muted mb-4">Historical patient eye-blink alert events with corresponding recorded telemetry clips.</p>
+                    <!-- Video telemetry recordings -->
+                    <div class="card bg-dark-card border-0 rounded-4 p-4">
+                        <h4 class="h5 text-white mb-3">Emergency Telemetry Video Clips</h4>
+                        <p class="text-secondary small mb-4">In camera hardware modes, the application compiles 5-second video logs for clinical auditing.</p>
                         
-                        <div class="table-wrapper">
-                            <table class="data-table" id="hosp-videos-table">
+                        <div class="table-responsive rounded-3 overflow-hidden">
+                            <table class="table table-dark table-striped mb-0 text-start alignment" id="hosp-videos-table">
                                 <thead>
-                                    <tr>
-                                        <th>Timestamp</th>
-                                        <th>Patient ID</th>
-                                        <th>Patient Name</th>
-                                        <th>Alert Message</th>
-                                        <th>Recorded Video Clip</th>
+                                    <tr class="table-dark-header">
+                                        <th class="py-3 px-4">Timestamp</th>
+                                        <th class="py-3 px-4">Patient ID</th>
+                                        <th class="py-3 px-4">Name</th>
+                                        <th class="py-3 px-4">Alert Message</th>
+                                        <th class="py-3 px-4">Video Clip</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     <tr>
-                                        <td colspan="5" class="text-center text-muted">No alert video clips recorded yet.</td>
+                                        <td colspan="5" class="py-4 text-center text-secondary">No video telemetry clips logged yet.</td>
                                     </tr>
                                 </tbody>
                             </table>
                         </div>
                     </div>
-
                 </div>
             </div>
         </div>
 
+        <!-- ========================================== -->
+        <!-- TAB 5: Doctor Dashboard -->
+        <!-- ========================================== -->
+        <div class="content-panel" id="doctor-dashboard-tab">
+            <div class="row g-4 text-start">
+                <div class="col-lg-6">
+                    <div class="card bg-dark-card border-0 rounded-4 p-4">
+                        <h3 class="h5 text-white mb-3"><i class="fa-solid fa-stethoscope text-accent me-2"></i>Active Shift Preferences</h3>
+                        <p class="text-secondary small mb-4">Set email distribution handles and alerts response routing.</p>
+                        
+                        <form id="doctor-settings-form" class="text-start">
+                            <div class="mb-3">
+                                <label for="doc-name" class="form-label text-secondary small fw-bold">Physician Name</label>
+                                <input type="text" id="doc-name" class="form-control bg-dark-soft border-0 text-white rounded-3 py-2 px-3 shadow-none" value="Dr. Elizabeth Blackburn">
+                            </div>
+                            <div class="mb-3">
+                                <label for="doc-email" class="form-label text-secondary small fw-bold">Emergency Alert Email</label>
+                                <input type="email" id="doc-email" class="form-control bg-dark-soft border-0 text-white rounded-3 py-2 px-3 shadow-none" value="icu_alerts@stjude.org">
+                            </div>
+                            <div class="mb-3">
+                                <label for="doc-phone" class="form-label text-secondary small fw-bold">SMS Mobile Target</label>
+                                <input type="text" id="doc-phone" class="form-control bg-dark-soft border-0 text-white rounded-3 py-2 px-3 shadow-none" value="+15550199203">
+                            </div>
+                            <button type="submit" class="btn btn-accent py-2 px-4 rounded-3 text-white fw-bold">
+                                Update Shift Contacts
+                            </button>
+                        </form>
+                    </div>
+                </div>
+
+                <div class="col-lg-6">
+                    <div class="card bg-dark-card border-0 rounded-4 p-4">
+                        <h3 class="h5 text-white mb-3"><i class="fa-solid fa-gears text-accent me-2"></i>Global Sensitivity Config</h3>
+                        <p class="text-secondary small mb-4">Set computer vision limits to match the room lighting and patient condition.</p>
+                        
+                        <div class="mb-3">
+                            <label class="form-label text-secondary small fw-bold d-flex justify-content-between">
+                                <span>Eye Closed EAR threshold</span>
+                                <span class="text-accent" id="sens-threshold-val">0.22</span>
+                            </label>
+                            <input type="range" class="form-range" min="0.10" max="0.35" step="0.01" value="0.22" id="sens-threshold-slider">
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label text-secondary small fw-bold d-flex justify-content-between">
+                                <span>Consecutive Frame Count</span>
+                                <span class="text-accent">2 Frames (80ms)</span>
+                            </label>
+                            <input type="range" class="form-range" min="1" max="5" value="2">
+                        </div>
+
+                        <div class="mb-4">
+                            <label class="form-label text-secondary small fw-bold d-flex justify-content-between">
+                                <span>Emergency Rapid Blink Threshold</span>
+                                <span class="text-accent">5 blinks / 5s</span>
+                            </label>
+                            <input type="range" class="form-range" min="3" max="8" value="5">
+                        </div>
+
+                        <button class="btn btn-dark-soft text-white py-2 px-4 rounded-3 fw-bold">
+                            Reset CV Sensitivity
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ========================================== -->
+        <!-- TAB 6: Patient Telemetry Dashboard -->
+        <!-- ========================================== -->
+        <div class="content-panel" id="patient-dashboard-tab">
+            <div class="row g-4 text-start">
+                <div class="col-lg-8">
+                    <!-- Biometric details graph -->
+                    <div class="card bg-dark-card border-0 rounded-4 p-4">
+                        <h3 class="h5 text-white mb-3"><i class="fa-solid fa-chart-line text-accent me-2"></i>Live EAR & Gaze Vector Chronology</h3>
+                        <p class="text-secondary small mb-4">Decoded mathematical variables tracking eye blinks and focus shifts.</p>
+                        
+                        <div style="height: 320px;">
+                            <canvas id="patient-telemetry-chart"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-lg-4">
+                    <div class="card bg-dark-card border-0 rounded-4 p-4 mb-4">
+                        <h3 class="h5 text-white mb-3">Est. Pupil Distance Baseline</h3>
+                        <div class="p-3 bg-dark-soft rounded-3 text-center my-3">
+                            <div class="fs-1 text-accent font-mono" id="patient-pd-stat">60.0 mm</div>
+                            <span class="text-secondary small">Calculated Calibration Baseline</span>
+                        </div>
+                        <p class="text-secondary small mb-0">Tracks focus coordinates. Drastic shifts might indicate distress or disorientation.</p>
+                    </div>
+
+                    <div class="card bg-dark-card border-0 rounded-4 p-4">
+                        <h3 class="h5 text-white mb-3">Calibration Status</h3>
+                        <div class="d-flex align-items-center gap-3">
+                            <div class="bg-success-soft p-3 rounded-circle text-success fs-3">
+                                <i class="fa-solid fa-circle-check"></i>
+                            </div>
+                            <div>
+                                <h4 class="h6 text-white mb-0 fw-bold">Optimal Calibration</h4>
+                                <span class="text-secondary small">Configured to Patient Profile</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ========================================== -->
+        <!-- TAB 7: Full Screen High-Visibility Emergency HUD -->
+        <!-- ========================================== -->
+        <div class="content-panel" id="emergency-siren-dashboard-tab">
+            <div class="card bg-dark-card border-0 rounded-4 p-4 text-center vh-75 d-flex flex-column align-items-center justify-content-center bg-danger-gradient transition-smooth">
+                <div class="hud-siren-ring mb-4">
+                    <div class="hud-siren-center bg-danger d-flex align-items-center justify-content-center text-white fs-1">
+                        <i class="fa-solid fa-bell-slash text-white cursor-pointer" id="hud-mute-btn" title="Toggle audio alert"></i>
+                    </div>
+                </div>
+                
+                <h1 class="text-white display-4 fw-bold mb-3 tracking-wide" id="hud-status-title">SYSTEM SECURE</h1>
+                <p class="text-secondary fs-5 mb-5 max-w-600" id="hud-status-desc">Active Emergency Siren HUD: Flashes Red when emergency blinks occur across the clinic rooms.</p>
+                
+                <div id="hud-patient-card" class="d-none w-100 max-w-500 p-4 rounded-4 bg-dark border border-danger border-opacity-35 text-start">
+                    <h3 class="h5 text-danger fw-bold mb-3"><i class="fa-solid fa-circle-exclamation me-2"></i>ACTIVE PATIENT THREAT</h3>
+                    <div class="text-white small mb-3">
+                        <div class="mb-2"><strong>Patient Name:</strong> <span id="hud-patient-name">-</span></div>
+                        <div class="mb-2"><strong>Bed Number:</strong> <span id="hud-patient-room">-</span></div>
+                        <div class="mb-2"><strong>Trigger Signal:</strong> <span id="hud-patient-msg">-</span></div>
+                        <div><strong>Thoughts Decoded:</strong> <strong class="text-danger" id="hud-patient-mind">-</strong></div>
+                    </div>
+                    <button id="hud-dismiss-btn" class="btn btn-danger w-100 py-3 rounded-3 fw-bold">
+                        DISMISS ALERT
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ========================================== -->
+        <!-- TAB 8: Admin Console Dashboard -->
+        <!-- ========================================== -->
+        <div class="content-panel" id="admin-dashboard-tab">
+            <div class="row g-4 text-start">
+                <div class="col-lg-4">
+                    <div class="card bg-dark-card border-0 rounded-4 p-4 text-start">
+                        <h3 class="h5 text-white mb-4"><i class="fa-solid fa-shield-halved text-accent me-2"></i>Active Operators</h3>
+                        <div class="d-flex flex-column gap-3" id="admin-operators-list">
+                            <!-- Populated dynamically -->
+                            <div class="bg-dark-soft p-3 rounded-3 text-start">
+                                <span class="text-white small d-block">St. Jude Medical Center</span>
+                                <span class="text-secondary small d-block">Role: Operator</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-lg-8">
+                    <div class="card bg-dark-card border-0 rounded-4 p-4">
+                        <h3 class="h5 text-white mb-4"><i class="fa-solid fa-server text-accent me-2"></i>System & Environment Logs</h3>
+                        
+                        <div class="row g-3 text-white small mb-4">
+                            <div class="col-sm-6">
+                                <div class="bg-dark-soft p-3 rounded-3">
+                                    <span class="text-secondary d-block">Database Dialect</span>
+                                    <strong class="text-accent" id="admin-db-dialect">SQLite (Production Fallback)</strong>
+                                </div>
+                            </div>
+                            <div class="col-sm-6">
+                                <div class="bg-dark-soft p-3 rounded-3">
+                                    <span class="text-secondary d-block">Active Camera Engine</span>
+                                    <strong class="text-success">OpenCV + MediaPipe Mesh</strong>
+                                </div>
+                            </div>
+                        </div>
+
+                        <h4 class="h6 text-white mb-3">Live Log Stream (Recent Events)</h4>
+                        <div class="bg-black p-3 rounded-3 border border-secondary border-opacity-10 text-start font-mono text-secondary small overflow-auto" style="height: 240px;" id="admin-logs-terminal">
+                            <div>[CareBlink Core] System loaded successfully.</div>
+                            <div>[Database] Tables verified. Seeding parameters check complete.</div>
+                            <div>[Camera] DirectShow hardware channel search completed.</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
     </main>
 
-    <!-- Eye Calibration Scan Overlay Modal -->
-    <div id="eye-scan-modal" class="scan-overlay-modal">
-        <div class="scan-modal-content">
-            <h3>Biometric Eye Calibration Scan</h3>
-            <p>Please sit straight and look directly at your camera. The system will scan your eye coordinates to automatically compute your baseline threshold and pupil distance.</p>
+    <!-- Eye Biometric Calibration Overlay Modal -->
+    <div id="eye-scan-modal" class="scan-overlay-modal bg-black bg-opacity-75 d-flex align-items-center justify-content-center">
+        <div class="scan-modal-content bg-dark-card p-4 rounded-4 shadow-lg text-center" style="max-width: 520px; width: 95%;">
+            <h3 class="h4 text-white mb-3">Biometric Eye Calibration Scan</h3>
+            <p class="text-secondary small mb-4">Look directly into your webcam. The application calculates baseline EAR average and interpupillary layout metrics.</p>
             
-            <!-- Active Scanning View -->
-            <div id="scan-active-view">
-                <div class="scan-viewport">
-                    <img id="scan-stream-img" class="scan-viewport-stream" src="" alt="Calibration Stream">
+            <!-- Scanning viewport -->
+            <div id="scan-active-view" class="text-center">
+                <div class="scan-viewport position-relative rounded-3 overflow-hidden bg-black mx-auto mb-4" style="width: 100%; aspect-ratio: 4/3; max-width: 400px;">
+                    <img id="scan-stream-img" class="w-100 h-100 object-fit-cover" src="" alt="Calibration Stream">
                     <div class="scan-target-box">
                         <div class="scan-target-face"></div>
                         <div class="scan-target-circle eye-l"></div>
@@ -643,64 +746,77 @@
                     </div>
                 </div>
                 
-                <div class="scan-status-text" id="scan-status-text">INITIALIZING CAMERA...</div>
+                <div class="scan-status-text text-accent font-mono small mb-3" id="scan-status-text">INITIALIZING CAMERA...</div>
                 
-                <div class="scan-progress-container">
-                    <div class="scan-progress-bar" id="scan-progress-bar"></div>
+                <div class="progress mb-4 bg-dark" style="height: 6px;">
+                    <div id="scan-progress-bar" class="progress-bar bg-accent" role="progressbar" style="width: 0%;" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
                 </div>
                 
-                <button type="button" id="btn-cancel-scan" class="scan-cancel-btn">Cancel Calibration</button>
+                <button type="button" id="btn-cancel-scan" class="btn btn-outline-danger w-100 py-2 rounded-3 fw-bold">
+                    Cancel Calibration
+                </button>
             </div>
 
-            <!-- Scanned Details Result View -->
-            <div id="scan-result-view" class="hidden">
-                <div class="success-icon-wrapper" style="margin-bottom: 20px;">
-                    <i class="fa-solid fa-circle-check" style="font-size: 3.5rem; color: #2dd4bf; filter: drop-shadow(0 0 10px rgba(45, 212, 191, 0.4));"></i>
+            <!-- Scanned result cards -->
+            <div id="scan-result-view" class="d-none">
+                <div class="text-success fs-1 mb-3">
+                    <i class="fa-solid fa-circle-check animate-pulse"></i>
                 </div>
-                <h4 style="color: #2dd4bf; font-weight: 600; margin-bottom: 20px;">BIOMETRIC IDENTIFICATION SCAN COMPLETE</h4>
+                <h4 class="h5 text-accent fw-bold mb-4">BIOMETRIC IDENTIFICATION SCAN COMPLETE</h4>
                 
-                <div class="scanned-details-card" style="background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border-glass); border-radius: 16px; padding: 20px; margin-bottom: 25px; text-align: left; display: flex; flex-direction: column; gap: 10px;">
-                    <div style="display: flex; justify-content: space-between; border-bottom: 1px solid rgba(255, 255, 255, 0.05); padding-bottom: 8px;">
-                        <span style="color: var(--text-secondary);">Patient ID:</span>
-                        <strong id="scan-res-id" style="color: var(--text-primary);">PT-EYE-XXXX</strong>
+                <div class="p-3 bg-dark rounded-3 text-start small text-white mb-4">
+                    <div class="d-flex justify-content-between mb-2">
+                        <span class="text-secondary">Patient ID:</span>
+                        <strong id="scan-res-id" class="font-mono text-accent">PT-EYE-XXXX</strong>
                     </div>
-                    <div style="display: flex; justify-content: space-between; border-bottom: 1px solid rgba(255, 255, 255, 0.05); padding-bottom: 8px;">
-                        <span style="color: var(--text-secondary);">Full Name:</span>
-                        <strong id="scan-res-name" style="color: var(--text-primary);">John Doe</strong>
+                    <div class="d-flex justify-content-between mb-2">
+                        <span class="text-secondary">Name:</span>
+                        <strong id="scan-res-name">Arthur Dent</strong>
                     </div>
-                    <div style="display: flex; justify-content: space-between; border-bottom: 1px solid rgba(255, 255, 255, 0.05); padding-bottom: 8px;">
-                        <span style="color: var(--text-secondary);">Estimated Age:</span>
-                        <strong id="scan-res-age" style="color: var(--text-primary);">--</strong>
+                    <div class="d-flex justify-content-between mb-2">
+                        <span class="text-secondary">Age:</span>
+                        <strong id="scan-res-age">42</strong>
                     </div>
-                    <div style="display: flex; justify-content: space-between; border-bottom: 1px solid rgba(255, 255, 255, 0.05); padding-bottom: 8px;">
-                        <span style="color: var(--text-secondary);">Assigned Room:</span>
-                        <strong id="scan-res-room" style="color: var(--text-primary);">--</strong>
+                    <div class="d-flex justify-content-between mb-2">
+                        <span class="text-secondary">Room:</span>
+                        <strong id="scan-res-room">Room 101</strong>
                     </div>
-                    <div style="display: flex; justify-content: space-between; border-bottom: 1px solid rgba(255, 255, 255, 0.05); padding-bottom: 8px;">
-                        <span style="color: var(--text-secondary);">Diagnostics:</span>
-                        <strong id="scan-res-condition" style="color: var(--text-primary);">--</strong>
+                    <div class="d-flex justify-content-between mb-2">
+                        <span class="text-secondary">Diagnosis:</span>
+                        <strong id="scan-res-condition">Locked-in Syndrome</strong>
                     </div>
-                    <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-top: 5px;">
-                        <div style="background: rgba(13, 148, 136, 0.1); border: 1px solid rgba(13, 148, 136, 0.3); border-radius: 8px; padding: 10px; text-align: center;">
-                            <div style="font-size: 0.75rem; color: var(--text-secondary);">Baseline EAR</div>
-                            <strong id="scan-res-base-ear" style="color: #2dd4bf; font-size: 1.1rem;">0.280</strong>
+                    <div class="mb-3">
+                        <span class="text-accent small d-block mt-2 mb-1"><i class="fa-solid fa-brain me-1"></i>Decoded thoughts:</span>
+                        <strong id="scan-res-mind-thoughts" class="text-white">I would like a glass of water.</strong>
+                    </div>
+                    <div class="row g-2 text-center text-white text-uppercase font-mono mt-2">
+                        <div class="col-6 bg-accent-soft p-2 rounded-3 border border-accent border-opacity-25">
+                            <span class="text-secondary small d-block" style="font-size: 0.65rem;">Base EAR</span>
+                            <strong id="scan-res-base-ear" class="text-accent">0.280</strong>
                         </div>
-                        <div style="background: rgba(6, 182, 212, 0.1); border: 1px solid rgba(6, 182, 212, 0.3); border-radius: 8px; padding: 10px; text-align: center;">
-                            <div style="font-size: 0.75rem; color: var(--text-secondary);">Pupil Distance</div>
-                            <strong id="scan-res-pd-val" style="color: #06b6d4; font-size: 1.1rem;">64.0 mm</strong>
+                        <div class="col-6 bg-accent-soft p-2 rounded-3 border border-accent border-opacity-25">
+                            <span class="text-secondary small d-block" style="font-size: 0.65rem;">Interpupillary</span>
+                            <strong id="scan-res-pd-val" class="text-accent">64.0 mm</strong>
                         </div>
                     </div>
                 </div>
                 
-                <button type="button" id="btn-apply-scan" class="btn btn-primary btn-block btn-ripple" style="padding: 12px 0;">
-                    <i class="fa-solid fa-circle-check"></i>
-                    <span>Apply & Close</span>
+                <button type="button" id="btn-apply-scan" class="btn btn-accent w-100 py-3 rounded-3 text-white fw-bold">
+                    <i class="fa-solid fa-circle-check me-2"></i> Apply & Close
                 </button>
             </div>
         </div>
     </div>
 
-    <!-- Script imports -->
+    <!-- Bootstrap 5 Bundle JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- Chart.js for biometric graphs -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- SheetJS + jsPDF via CDN for client side exporting -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.29/jspdf.plugin.autotable.min.js"></script>
+    <!-- Custom JS script -->
     <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
 </body>
 </html>

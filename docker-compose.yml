@@ -1,0 +1,35 @@
+version: '3.8'
+
+services:
+  web:
+    build: .
+    ports:
+      - "5000:5000"
+    environment:
+      - FLASK_ENV=production
+      - DB_HOST=db
+      - DB_USER=root
+      - DB_PASSWORD=careblink_root_pwd
+      - DB_NAME=careblink
+      - SECRET_KEY=careblink_composed_secret_778899
+      - FLASK_PORT=5000
+    depends_on:
+      - db
+    volumes:
+      - ./all records:/app/all records
+      - ./logs:/app/logs
+
+  db:
+    image: mysql:8.0
+    command: --default-authentication-plugin=mysql_native_password
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: careblink_root_pwd
+      MYSQL_DATABASE: careblink
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+
+volumes:
+  mysql_data:

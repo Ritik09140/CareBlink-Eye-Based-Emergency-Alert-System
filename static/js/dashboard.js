@@ -1,24 +1,33 @@
 /*
-  CareBlink - Dashboard JavaScript Controller
-  Handles: Tab navigation, camera subprocess control, live API polling,
-           Web Audio alarm synthesiser, logs, and patient records.
+  CareBlink - Dashboard Javascript Controller
+  Manages: Tab navigation, webcam stream control, live API polling,
+           Web Audio API sirens, biometric charts (Chart.js), data exports (SheetJS/jsPDF).
 */
 
 document.addEventListener('DOMContentLoaded', () => {
-    // Current application state
+    // Session State Object
     const appState = {
         activeTab: 'live-dashboard',
         activeAlert: null,
         soundEnabled: true,
         pollingInterval: null,
         audioContext: null,
-        buzzerInterval: null,
-        cameraRunning: true,
         localLastBlinkTime: 0.0,
-        isHighTone: true
+        cameraRunning: false,
+        telemetryChart: null,
+        earHistory: Array(30).fill(0.28),
+        chartLabels: Array(30).fill(''),
+        sirenOscillator: null,
+        sirenLfo: null,
+        sirenGain: null,
+        systemLogs: [
+            "[CareBlink Initializing] Checked database connections.",
+            "[Database Service] Connection active.",
+            "[Webcam Controller] Waiting for operator trigger..."
+        ]
     };
 
-    // DOM Elements Cache
+    // DOM Caches
     const tabMenuItems = document.querySelectorAll('.menu-item');
     const contentPanels = document.querySelectorAll('.content-panel');
     const tabTitle = document.getElementById('tab-title');
@@ -26,7 +35,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const soundToggleBtn = document.getElementById('sound-toggle-btn');
     const virtualBulb = document.getElementById('virtual-bulb');
     const bulbStatusText = document.getElementById('bulb-status-text');
-    const alertBadge = document.getElementById('alert-badge');
     const normalStateView = document.getElementById('normal-state-view');
     const emergencyStateView = document.getElementById('emergency-state-view');
     const dismissAlertBtn = document.getElementById('dismiss-alert-btn');
@@ -35,85 +43,64 @@ document.addEventListener('DOMContentLoaded', () => {
     const patientsTableBody = document.querySelector('#patients-table tbody');
     const historyTableBody = document.querySelector('#history-table tbody');
     
-    // Dashboard camera control buttons
     const dbCameraStartBtn = document.getElementById('dashboard-camera-start');
     const dbCameraStopBtn = document.getElementById('dashboard-camera-stop');
     const dbCameraStatusBadge = document.getElementById('dashboard-camera-status');
     const sidebarDbDialect = document.getElementById('sidebar-db-dialect');
-
-    // Page metadata
-    const pageMetadata = {
-        'live-dashboard': {
-            title: 'Live Monitor Dashboard',
-            subtitle: 'Real-time patient monitoring feed and status alerts.'
-        },
-        'patient-records': {
-            title: 'Patients Registry',
-            subtitle: 'Manage and register patient profiles for blink monitoring.'
-        },
-        'alert-history': {
-            title: 'Emergency Incident Logs',
-            subtitle: 'Historical archive of eye-blink emergency dispatches.'
-        },
-        'hospital-records': {
-            title: 'All Hospital Records',
-            subtitle: 'Isolated medical registries and monitoring archives segmented by facility.'
-        }
+    
+    // Page Descriptions
+    const tabDetails = {
+        'live-dashboard': { title: 'Live Monitor Dashboard', subtitle: 'Real-time patient monitoring feed and status alerts.' },
+        'patient-records': { title: 'Patients Registry', subtitle: 'Manage and register patient profiles for blink monitoring.' },
+        'alert-history': { title: 'Emergency Incident Logs', subtitle: 'Historical archive of eye-blink emergency dispatches.' },
+        'hospital-records': { title: 'All Hospital Records', subtitle: 'Isolated medical registries and monitoring archives segmented by facility.' },
+        'doctor-dashboard': { title: 'Doctor Console', subtitle: 'Active shift configurations and computer vision triggers.' },
+        'patient-dashboard': { title: 'Patient Bio-Telemetry', subtitle: 'Dynamic EAR indices, eye coordinates, and gaze charts.' },
+        'emergency-siren-dashboard': { title: 'Emergency Alarm HUD', subtitle: 'High-visibility ward monitor mapping active sirens.' },
+        'admin-dashboard': { title: 'Admin Management Console', subtitle: 'Environment logging and system configuration dial.' }
     };
 
-    // ==========================================================================
-    // Sidebar Navigation Tabs Setup
-    // ==========================================================================
+    // ==========================================
+    // Sidebar Tabs Controller
+    // ==========================================
     tabMenuItems.forEach(item => {
         item.addEventListener('click', (e) => {
             e.preventDefault();
-            const targetTab = item.getAttribute('data-tab');
-            
+            const target = item.getAttribute('data-tab');
+            if (!target) return;
+
             tabMenuItems.forEach(mi => mi.classList.remove('active'));
             item.classList.add('active');
 
             contentPanels.forEach(panel => panel.classList.remove('active'));
-            document.getElementById(`${targetTab}-tab`).classList.add('active');
+            const matchedPanel = document.getElementById(`${target}-tab`);
+            if (matchedPanel) matchedPanel.classList.add('active');
 
-            tabTitle.textContent = pageMetadata[targetTab].title;
-            tabSubtitle.textContent = pageMetadata[targetTab].subtitle;
+            if (tabTitle) tabTitle.textContent = tabDetails[target].title;
+            if (tabSubtitle) tabSubtitle.textContent = tabDetails[target].subtitle;
+            
+            appState.activeTab = target;
+            addTerminalLog(`[Navigation] Shifter page view context to: ${tabDetails[target].title}`);
 
-            appState.activeTab = targetTab;
-
-            if (targetTab === 'patient-records') {
+            // Lazy loaders
+            if (target === 'patient-records') {
                 loadPatientsList();
-            } else if (targetTab === 'alert-history') {
+            } else if (target === 'alert-history') {
                 loadAlertHistory();
-            } else if (targetTab === 'hospital-records') {
+            } else if (target === 'hospital-records') {
                 loadHospitalRecords();
+            } else if (target === 'patient-dashboard') {
+                initTelemetryChart();
+            } else if (target === 'admin-dashboard') {
+                loadAdminConsole();
             }
         });
     });
 
-    // Hospital selector tab click listeners for "All Hospital Records"
-    const hospitalTabBtns = document.querySelectorAll('.hospital-tab-btn');
-    const hospitalSections = document.querySelectorAll('.hospital-section');
-
-    hospitalTabBtns.forEach(btn => {
-        btn.addEventListener('click', () => {
-            hospitalTabBtns.forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
-
-            const hospId = btn.getAttribute('data-hospital');
-            hospitalSections.forEach(sec => {
-                if (sec.id === `${hospId}-section`) {
-                    sec.classList.add('active');
-                } else {
-                    sec.classList.remove('active');
-                }
-            });
-        });
-    });
-
-    // ==========================================================================
-    // Camera Subprocess API Handlers
-    // ==========================================================================
-    async function updateCameraStatus() {
+    // ==========================================
+    // Camera streaming API Handlers
+    // ==========================================
+    async function updateCameraTelemetry() {
         try {
             const response = await fetch('/api/camera/status');
             const data = await response.json();
@@ -122,178 +109,365 @@ document.addEventListener('DOMContentLoaded', () => {
             const cameraImg = document.getElementById('camera-stream-img');
             const cameraPlaceholder = document.getElementById('camera-placeholder-box');
             
-            const teleName = document.getElementById('tele-patient-name');
-            const teleId = document.getElementById('tele-patient-id');
-            const teleRoom = document.getElementById('tele-patient-room');
-            const teleCondition = document.getElementById('tele-patient-condition');
-            const teleEarBase = document.getElementById('tele-ear-base');
-            const teleEarCurrent = document.getElementById('tele-ear-current');
-            const teleEarThresh = document.getElementById('tele-ear-thresh');
-            const telePupilDist = document.getElementById('tele-pupil-dist');
-            const teleCurrentPd = document.getElementById('tele-current-pd');
-            const teleGazePos = document.getElementById('tele-gaze-pos');
-            const teleBlinksCount = document.getElementById('tele-blinks-count');
-            const teleSystemStatus = document.getElementById('tele-system-status');
-            
             if (appState.cameraRunning) {
-                dbCameraStatusBadge.className = 'camera-badge running';
-                dbCameraStatusBadge.querySelector('.text').textContent = 'ONLINE';
-                dbCameraStartBtn.disabled = true;
-                dbCameraStopBtn.disabled = false;
+                if (dbCameraStatusBadge) {
+                    dbCameraStatusBadge.className = 'badge bg-success-soft text-success px-2 py-1 rounded-2';
+                    dbCameraStatusBadge.textContent = 'ONLINE';
+                }
+                if (dbCameraStartBtn) dbCameraStartBtn.disabled = true;
+                if (dbCameraStopBtn) dbCameraStopBtn.disabled = false;
                 
-                document.getElementById('system-status-badge').querySelector('.status-text').textContent = 'Camera Streaming';
-                document.getElementById('system-status-badge').querySelector('.pulse-dot').className = 'pulse-dot green';
+                const statusBadgeEl = document.getElementById('system-status-badge');
+                if (statusBadgeEl) {
+                    statusBadgeEl.querySelector('.status-text').textContent = 'Camera Online';
+                    statusBadgeEl.querySelector('.pulse-dot').className = 'pulse-dot green';
+                    statusBadgeEl.className = 'status-badge bg-success-soft text-success px-3 py-2 rounded-3 d-flex align-items-center gap-2';
+                }
                 
                 if (cameraImg && cameraPlaceholder) {
                     cameraImg.src = '/video_feed';
-                    cameraImg.style.display = 'block';
-                    cameraPlaceholder.style.display = 'none';
+                    cameraImg.classList.remove('d-none');
+                    cameraPlaceholder.classList.add('d-none');
                 }
+
+                // Update text boxes
+                document.getElementById('tele-patient-name').textContent = data.patient_name;
+                document.getElementById('tele-patient-id').textContent = data.patient_id;
+                document.getElementById('tele-patient-room').textContent = `Room ${data.room_number}`;
+                document.getElementById('tele-ear-base').textContent = Number(data.baseline_ear).toFixed(3);
+                document.getElementById('tele-ear-current').textContent = Number(data.current_ear).toFixed(3);
+                document.getElementById('tele-ear-thresh').textContent = Number(data.ear_threshold).toFixed(3);
+                document.getElementById('tele-pupil-dist').textContent = Number(data.pupil_distance).toFixed(1) + ' mm';
+                document.getElementById('tele-gaze-pos').textContent = data.current_gaze.toUpperCase();
+                document.getElementById('tele-blinks-count').textContent = data.current_blinks;
                 
-                if (teleName && data.patient_name) teleName.textContent = data.patient_name;
-                if (teleId && data.patient_id) teleId.textContent = data.patient_id;
-                if (teleRoom) {
-                    if (data.patient_age && data.room_number) {
-                        teleRoom.textContent = `${data.patient_age} / Room ${data.room_number}`;
-                    } else if (data.room_number) {
-                        teleRoom.textContent = data.room_number;
-                    }
-                }
-                if (teleCondition && data.medical_condition) teleCondition.textContent = data.medical_condition;
-                if (teleEarBase && data.baseline_ear !== undefined) teleEarBase.textContent = Number(data.baseline_ear).toFixed(3);
-                if (teleEarCurrent && data.current_ear !== undefined) teleEarCurrent.textContent = Number(data.current_ear).toFixed(3);
-                if (teleEarThresh && data.ear_threshold !== undefined) teleEarThresh.textContent = Number(data.ear_threshold).toFixed(3);
-                if (telePupilDist && data.pupil_distance !== undefined) telePupilDist.textContent = Number(data.pupil_distance).toFixed(1) + ' mm';
-                if (teleCurrentPd && data.current_pd !== undefined) teleCurrentPd.textContent = Number(data.current_pd).toFixed(1) + ' mm';
-                
-                if (teleGazePos && data.current_gaze !== undefined) {
-                    teleGazePos.textContent = data.current_gaze.toUpperCase();
+                // Shift Gaze Highlight Color
+                const gazeText = document.getElementById('tele-gaze-pos');
+                if (gazeText) {
                     if (data.current_gaze === 'left' || data.current_gaze === 'right') {
-                        teleGazePos.style.color = '#ef4444';
+                        gazeText.className = 'text-danger font-mono d-block';
                     } else {
-                        teleGazePos.style.color = '#2dd4bf';
+                        gazeText.className = 'text-accent font-mono d-block';
                     }
                 }
-                
-                if (teleBlinksCount && data.current_blinks !== undefined) teleBlinksCount.textContent = data.current_blinks;
-                
-                if (teleSystemStatus) {
-                    if (appState.activeAlert) {
-                        teleSystemStatus.className = 'status-badge-inline emergency';
-                        teleSystemStatus.textContent = 'EMERGENCY';
-                    } else if (data.face_detected) {
-                        teleSystemStatus.className = 'status-badge-inline safe';
-                        teleSystemStatus.textContent = 'EYES DETECTED';
-                    } else {
-                        teleSystemStatus.className = 'status-badge-inline warning';
-                        teleSystemStatus.textContent = 'SEARCHING EYES...';
-                    }
+
+                // Decoded thoughts banner
+                let thoughtMsg = data.mind_thoughts || "Calm and resting.";
+                if (data.current_blinks > 0) {
+                    const dict = {
+                        1: '⚡ Thought: "Yes / I hear you."',
+                        2: '⚡ Thought: "No / Disagree."',
+                        3: '⚡ Thought: "Requesting water."',
+                        4: '⚡ Thought: "I feel cold."',
+                        5: '🚨 Thought: "EMERGENCY ALERT!"'
+                    };
+                    thoughtMsg = dict[Math.min(data.current_blinks, 5)];
                 }
+                document.getElementById('tele-mind-thoughts').textContent = thoughtMsg;
+
+                // Push dynamic charts updates
+                if (appState.telemetryChart) {
+                    appState.earHistory.shift();
+                    appState.earHistory.push(data.current_ear);
+                    appState.telemetryChart.update('none');
+                }
+                
+                const pdStat = document.getElementById('patient-pd-stat');
+                if (pdStat) pdStat.textContent = Number(data.current_pd).toFixed(1) + ' mm';
                 
             } else {
-                dbCameraStatusBadge.className = 'camera-badge stopped';
-                dbCameraStatusBadge.querySelector('.text').textContent = 'OFFLINE';
-                dbCameraStartBtn.disabled = false;
-                dbCameraStopBtn.disabled = true;
+                if (dbCameraStatusBadge) {
+                    dbCameraStatusBadge.className = 'badge bg-danger-soft text-danger px-2 py-1 rounded-2';
+                    dbCameraStatusBadge.textContent = 'OFFLINE';
+                }
+                if (dbCameraStartBtn) dbCameraStartBtn.disabled = false;
+                if (dbCameraStopBtn) dbCameraStopBtn.disabled = true;
                 
-                document.getElementById('system-status-badge').querySelector('.status-text').textContent = 'Camera Stopped';
-                document.getElementById('system-status-badge').querySelector('.pulse-dot').className = 'pulse-dot red';
+                const statusBadgeEl = document.getElementById('system-status-badge');
+                if (statusBadgeEl) {
+                    statusBadgeEl.querySelector('.status-text').textContent = 'Camera Offline';
+                    statusBadgeEl.querySelector('.pulse-dot').className = 'pulse-dot red';
+                    statusBadgeEl.className = 'status-badge bg-danger-soft text-danger px-3 py-2 rounded-3 d-flex align-items-center gap-2';
+                }
                 
                 if (cameraImg && cameraPlaceholder) {
                     cameraImg.removeAttribute('src');
-                    cameraImg.style.display = 'none';
-                    cameraPlaceholder.style.display = 'flex';
+                    cameraImg.classList.add('d-none');
+                    cameraPlaceholder.classList.remove('d-none');
                 }
             }
         } catch (err) {
-            console.error('Error fetching camera status:', err);
-        }
-    }
-
-    // Minimize button logic for floating camera widget
-    const minimizeFloatCamBtn = document.getElementById('minimize-floating-cam');
-    const floatWidgetEl = document.getElementById('floating-camera-widget');
-    if (minimizeFloatCamBtn && floatWidgetEl) {
-        minimizeFloatCamBtn.addEventListener('click', (e) => {
-            e.preventDefault();
-            floatWidgetEl.classList.toggle('minimized');
-            const icon = minimizeFloatCamBtn.querySelector('i');
-            if (floatWidgetEl.classList.contains('minimized')) {
-                icon.className = 'fa-solid fa-expand';
-            } else {
-                icon.className = 'fa-solid fa-minus';
-            }
-        });
-    }
-
-    function scrollToCameraFeed() {
-        const targetTab = 'live-dashboard';
-        const item = document.querySelector(`.menu-item[data-tab="${targetTab}"]`);
-        if (item && !item.classList.contains('active')) {
-            tabMenuItems.forEach(mi => mi.classList.remove('active'));
-            item.classList.add('active');
-
-            contentPanels.forEach(panel => panel.classList.remove('active'));
-            document.getElementById(`${targetTab}-tab`).classList.add('active');
-
-            tabTitle.textContent = pageMetadata[targetTab].title;
-            tabSubtitle.textContent = pageMetadata[targetTab].subtitle;
-
-            appState.activeTab = targetTab;
-        }
-        
-        // Scroll to the camera stream section
-        const cameraCard = document.querySelector('.camera-action-card');
-        if (cameraCard) {
-            cameraCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            console.error('Status fetch warning:', err);
         }
     }
 
     dbCameraStartBtn.addEventListener('click', async () => {
         try {
             dbCameraStartBtn.disabled = true;
-            const patientIdVal = document.getElementById('monitor-patient-select')?.value || 'PT-2045';
+            const selectId = document.getElementById('monitor-patient-select')?.value || 'PT-2045';
+            addTerminalLog(`[Camera] Requesting stream start for: ${selectId}`);
             const response = await fetch('/api/camera/start', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ patient_id: patientIdVal })
+                body: JSON.stringify({ patient_id: selectId })
             });
             const data = await response.json();
             if (data.success) {
-                updateCameraStatus();
-                setTimeout(scrollToCameraFeed, 150);
+                showToast("Webcam Monitoring Activated!", "success");
+                addTerminalLog("[Camera] Stream initialized successfully.");
+                updateCameraTelemetry();
             }
         } catch (err) {
-            console.error('Camera start failed:', err);
             dbCameraStartBtn.disabled = false;
+            showToast("Webcam start command failed.", "danger");
         }
     });
 
     dbCameraStopBtn.addEventListener('click', async () => {
         try {
             dbCameraStopBtn.disabled = true;
+            addTerminalLog("[Camera] Requesting stream shutdown.");
             const response = await fetch('/api/camera/stop', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' }
             });
             const data = await response.json();
             if (data.success) {
-                updateCameraStatus();
+                showToast("Webcam Monitoring Deactivated.", "info");
+                addTerminalLog("[Camera] Stream disconnected.");
+                updateCameraTelemetry();
             }
         } catch (err) {
-            console.error('Camera stop failed:', err);
             dbCameraStopBtn.disabled = false;
         }
     });
 
-    // Initial check on page load
-    updateCameraStatus();
-    loadPatientSelect();
+    // ==========================================
+    // Active Alarm Polling & Sirens (Web Audio)
+    // ==========================================
+    async function checkActiveAlerts() {
+        try {
+            const response = await fetch('/api/alerts/active');
+            const data = await response.json();
+            
+            if (sidebarDbDialect && data.db_dialect) {
+                sidebarDbDialect.textContent = data.db_dialect;
+            }
 
+            // Play beep on normal blinks
+            if (data.last_blink_time && data.last_blink_time > appState.localLastBlinkTime) {
+                if (appState.localLastBlinkTime > 0.0) {
+                    playSoftBeep();
+                }
+                appState.localLastBlinkTime = data.last_blink_time;
+            }
 
-    // ==========================================================================
-    // Sound & Web Audio API Buzzer Logic
-    // ==========================================================================
+            if (data.has_active) {
+                appState.activeAlert = data.alert;
+                renderActiveIncident(data.alert);
+            } else {
+                appState.activeAlert = null;
+                renderSafeState();
+            }
+            
+            // Polling camera metrics updates
+            updateCameraTelemetry();
+        } catch (err) {
+            console.error('Blink Polling error:', err);
+        }
+    }
+
+    function renderActiveIncident(alert) {
+        if (normalStateView) normalStateView.classList.add('d-none');
+        if (emergencyStateView) emergencyStateView.classList.remove('d-none');
+        
+        if (virtualBulb) {
+            virtualBulb.className = 'virtual-bulb status-emergency';
+        }
+        if (bulbStatusText) {
+            bulbStatusText.textContent = 'PATIENT EMERGENCY';
+            bulbStatusText.className = 'h6 text-white font-mono mb-2 text-danger';
+        }
+
+        // Fill data boxes
+        document.getElementById('emg-patient-name').textContent = alert.name;
+        document.getElementById('emg-patient-room').textContent = `${alert.patient_id} / ${alert.room_number}`;
+        document.getElementById('emg-message').textContent = alert.message;
+        document.getElementById('emg-mind-thoughts').textContent = alert.mind_thoughts || "Urgent assistance requested!";
+        document.getElementById('emergency-time').textContent = `Triggered: ${alert.created_at}`;
+
+        // Update High Visibility HUD
+        const hudCard = document.getElementById('hud-patient-card');
+        const hudTitle = document.getElementById('hud-status-title');
+        const hudDesc = document.getElementById('hud-status-desc');
+        const hudContainer = hudTitle.parentElement;
+        
+        if (hudTitle && hudCard) {
+            hudTitle.textContent = "EMERGENCY SIREN ACTIVE";
+            hudTitle.className = "text-danger display-4 fw-bold mb-3 tracking-wide animate-pulse";
+            if (hudDesc) hudDesc.classList.add('d-none');
+            hudCard.classList.remove('d-none');
+            
+            document.getElementById('hud-patient-name').textContent = alert.name;
+            document.getElementById('hud-patient-room').textContent = alert.room_number;
+            document.getElementById('hud-patient-msg').textContent = alert.message;
+            document.getElementById('hud-patient-mind').textContent = alert.mind_thoughts || "Emergency code triggered";
+            
+            if (hudContainer) hudContainer.classList.add('alarm-active');
+        }
+
+        // Trigger wailing alarm siren sound
+        startEmergencySiren();
+    }
+
+    function renderSafeState() {
+        if (emergencyStateView) emergencyStateView.classList.add('d-none');
+        if (normalStateView) normalStateView.classList.remove('d-none');
+
+        if (virtualBulb) {
+            virtualBulb.className = appState.cameraRunning ? 'virtual-bulb status-safe' : 'virtual-bulb status-warning';
+        }
+        if (bulbStatusText) {
+            bulbStatusText.textContent = appState.cameraRunning ? 'SYSTEM SECURE' : 'CAMERA OFFLINE';
+            bulbStatusText.className = appState.cameraRunning ? 'h6 text-white font-mono mb-2 text-success' : 'h6 text-white font-mono mb-2 text-warning';
+        }
+
+        // Reset HUD View
+        const hudCard = document.getElementById('hud-patient-card');
+        const hudTitle = document.getElementById('hud-status-title');
+        const hudDesc = document.getElementById('hud-status-desc');
+        const hudContainer = hudTitle?.parentElement;
+
+        if (hudTitle && hudCard) {
+            hudTitle.textContent = "SYSTEM SECURE";
+            hudTitle.className = "text-white display-4 fw-bold mb-3 tracking-wide";
+            if (hudDesc) hudDesc.classList.remove('d-none');
+            hudCard.classList.add('d-none');
+            
+            if (hudContainer) hudContainer.classList.remove('alarm-active');
+        }
+
+        // Stop siren alarm sound
+        stopEmergencySiren();
+    }
+
+    dismissAlertBtn?.addEventListener('click', dismissActiveAlert);
+    document.getElementById('hud-dismiss-btn')?.addEventListener('click', dismissActiveAlert);
+
+    async function dismissActiveAlert() {
+        try {
+            stopEmergencySiren();
+            renderSafeState();
+            addTerminalLog("[Alert Reset] Operator dismissed active threat coordinates.");
+            
+            await fetch('/api/alerts/dismiss', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            });
+            showToast("Emergency siren resolved.", "success");
+        } catch (err) {
+            console.error('Dismiss API error:', err);
+        }
+    }
+
+    // ==========================================
+    // Web Audio Synthesizer Logic
+    // ==========================================
+    function initAudio() {
+        if (!appState.audioContext) {
+            appState.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        }
+    }
+
+    function playSoftBeep() {
+        if (!appState.soundEnabled) return;
+        try {
+            initAudio();
+            const ctx = appState.audioContext;
+            if (ctx.state === 'suspended') ctx.resume();
+            
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(880, ctx.currentTime);
+            
+            gain.gain.setValueAtTime(0.12, ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.1);
+            
+            osc.start();
+            osc.stop(ctx.currentTime + 0.12);
+        } catch (e) {
+            console.error(e);
+        }
+    }
+
+    function startEmergencySiren() {
+        if (appState.sirenOscillator) return;
+        if (!appState.soundEnabled) return;
+        try {
+            initAudio();
+            const ctx = appState.audioContext;
+            if (ctx.state === 'suspended') ctx.resume();
+            
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(750, ctx.currentTime);
+            
+            // Siren pitch sweep LFO
+            const lfo = ctx.createOscillator();
+            const lfoGain = ctx.createGain();
+            lfo.type = 'triangle';
+            lfo.frequency.setValueAtTime(2.0, ctx.currentTime); // 2Hz frequency
+            lfoGain.gain.setValueAtTime(180, ctx.currentTime);
+            
+            lfo.connect(lfoGain);
+            lfoGain.connect(osc.frequency);
+            
+            gain.gain.setValueAtTime(0.01, ctx.currentTime);
+            gain.gain.linearRampToValueAtTime(0.3, ctx.currentTime + 0.1);
+            
+            lfo.start();
+            osc.start();
+            
+            appState.sirenOscillator = osc;
+            appState.sirenLfo = lfo;
+            appState.sirenGain = gain;
+        } catch (e) {
+            console.error('Audio start error:', e);
+        }
+    }
+
+    function stopEmergencySiren() {
+        if (appState.sirenOscillator) {
+            try {
+                const ctx = appState.audioContext;
+                const osc = appState.sirenOscillator;
+                const lfo = appState.sirenLfo;
+                const gain = appState.sirenGain;
+                
+                gain.gain.setValueAtTime(gain.gain.value, ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.1);
+                
+                osc.stop(ctx.currentTime + 0.15);
+                lfo.stop(ctx.currentTime + 0.15);
+            } catch (e) {
+                console.error(e);
+            }
+            appState.sirenOscillator = null;
+            appState.sirenLfo = null;
+            appState.sirenGain = null;
+        }
+    }
+
     soundToggleBtn.addEventListener('click', () => {
         appState.soundEnabled = !appState.soundEnabled;
         const icon = soundToggleBtn.querySelector('i');
@@ -305,231 +479,26 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
             icon.className = 'fa-solid fa-volume-xmark';
             text.textContent = 'Sound: Muted';
-            stopBuzzerBeep();
+            stopEmergencySiren();
         }
     });
 
-    function initAudioContext() {
-        if (!appState.audioContext) {
-            appState.audioContext = new (window.AudioContext || window.webkitAudioContext)();
-        }
-    }
-
-    // Play synthesized monitor sounds
-    function playSingleBeep(frequency = 980, duration = 0.25, volume = 0.3) {
-        if (!appState.soundEnabled) return;
-        try {
-            initAudioContext();
-            const ctx = appState.audioContext;
-            
-            if (ctx.state === 'suspended') {
-                ctx.resume();
-            }
-
-            const osc = ctx.createOscillator();
-            const gainNode = ctx.createGain();
-
-            osc.connect(gainNode);
-            gainNode.connect(ctx.destination);
-
-            osc.type = 'sine';
-            osc.frequency.setValueAtTime(frequency, ctx.currentTime);
-
-            gainNode.gain.setValueAtTime(volume, ctx.currentTime);
-            gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + duration);
-
-            osc.start(ctx.currentTime);
-            osc.stop(ctx.currentTime + duration);
-        } catch (e) {
-            console.error('Audio synthesizer error:', e);
-        }
-    }
-
-    // Continuous Wailing Ambulance/Hospital Emergency Siren
-    function startBuzzerBeep() {
-        if (appState.sirenOscillator) return; // already active
-        if (!appState.soundEnabled) return;
-        
-        try {
-            initAudioContext();
-            const ctx = appState.audioContext;
-            if (ctx.state === 'suspended') ctx.resume();
-
-            // Primary wailing oscillator
-            const osc = ctx.createOscillator();
-            const gainNode = ctx.createGain();
-
-            osc.connect(gainNode);
-            gainNode.connect(ctx.destination);
-
-            osc.type = 'sawtooth'; // sawtooth gives a very rich, loud, piercing wail siren tone (big sound!)
-            osc.frequency.setValueAtTime(800, ctx.currentTime);
-
-            // Modulating LFO (alternates frequency dynamically for siren wail)
-            const lfo = ctx.createOscillator();
-            const lfoGain = ctx.createGain();
-
-            lfo.type = 'triangle';
-            lfo.frequency.setValueAtTime(2.2, ctx.currentTime); // 2.2 Hz modulation cycle (fast, urgent!)
-            lfoGain.gain.setValueAtTime(220, ctx.currentTime);  // Modulate frequency +/- 220 Hz (sweep range 580Hz - 1020Hz)
-
-            // Connect LFO Modulator -> Gain -> Primary Oscillator Frequency
-            lfo.connect(lfoGain);
-            lfoGain.connect(osc.frequency);
-
-            // Set high volume (0.4 gain) for a big, clear wail
-            gainNode.gain.setValueAtTime(0.001, ctx.currentTime);
-            gainNode.gain.linearRampToValueAtTime(0.4, ctx.currentTime + 0.08);
-
-            lfo.start();
-            osc.start();
-
-            // Store references in appState to terminate later
-            appState.sirenOscillator = osc;
-            appState.sirenLfo = lfo;
-            appState.sirenGain = gainNode;
-            
-            console.log("[*] Loud continuous wailing siren alarm started.");
-        } catch (e) {
-            console.error('Failed to start continuous siren:', e);
-        }
-    }
-
-    function stopBuzzerBeep() {
-        if (appState.sirenOscillator) {
-            try {
-                const ctx = appState.audioContext;
-                const osc = appState.sirenOscillator;
-                const lfo = appState.sirenLfo;
-                const gain = appState.sirenGain;
-
-                // Smooth fade-out to prevent popping sounds
-                gain.gain.setValueAtTime(gain.gain.value, ctx.currentTime);
-                gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
-
-                osc.stop(ctx.currentTime + 0.2);
-                lfo.stop(ctx.currentTime + 0.2);
-                console.log("[-] Wailing siren alarm stopped.");
-            } catch (e) {
-                console.error('Error stopping siren alarm:', e);
-            }
-            appState.sirenOscillator = null;
-            appState.sirenLfo = null;
-            appState.sirenGain = null;
-        }
-    }
-
-
-    // ==========================================================================
-    // Core Live Polling Engine
-    // ==========================================================================
-    async function checkActiveAlerts() {
-        try {
-            const response = await fetch('/api/alerts/active');
-            if (!response.ok) throw new Error('Network error');
-            const data = await response.json();
-            
-            // Sync database dialect in sidebar
-            if (data.db_dialect) {
-                sidebarDbDialect.textContent = data.db_dialect;
-            }
-
-            // 1. Play soft beep sound if a new normal blink is detected
-            if (data.last_blink_time && data.last_blink_time > appState.localLastBlinkTime) {
-                if (appState.localLastBlinkTime > 0.0) {
-                    playSingleBeep(520, 0.08, 0.15);
-                }
-                appState.localLastBlinkTime = data.last_blink_time;
-            }
-
-            // 2. Manage Emergency visual states
-            if (data.has_active) {
-                appState.activeAlert = data.alert;
-                renderAlertActive(data.alert);
+    document.getElementById('hud-mute-btn')?.addEventListener('click', () => {
+        soundToggleBtn.click();
+        const hudMute = document.getElementById('hud-mute-btn');
+        if (hudMute) {
+            if (appState.soundEnabled) {
+                hudMute.className = 'fa-solid fa-bell text-white cursor-pointer';
             } else {
-                appState.activeAlert = null;
-                renderAlertSafe();
+                hudMute.className = 'fa-solid fa-bell-slash text-white cursor-pointer';
             }
-            
-            // Sync camera and floating widget telemetry stats
-            updateCameraStatus();
-        } catch (error) {
-            console.error('Error polling active alerts:', error);
-            document.getElementById('system-status-badge').querySelector('.status-text').textContent = 'API Connection Error';
-            document.getElementById('system-status-badge').querySelector('.pulse-dot').className = 'pulse-dot red';
-        }
-    }
-
-    function renderAlertActive(alert) {
-        normalStateView.classList.add('hidden');
-        emergencyStateView.classList.remove('hidden');
-
-        virtualBulb.className = 'virtual-bulb status-emergency';
-        bulbStatusText.textContent = 'EMERGENCY ALERT';
-        bulbStatusText.className = 'bulb-status-text emergency';
-        
-        alertBadge.textContent = 'EMERGENCY';
-        alertBadge.className = 'badge emergency';
-
-        document.getElementById('emg-patient-name').textContent = alert.name;
-        document.getElementById('emg-patient-room').textContent = `${alert.patient_id} / ${alert.room_number}`;
-        document.getElementById('emg-patient-condition').textContent = alert.medical_condition;
-        document.getElementById('emg-message').textContent = alert.message;
-        document.getElementById('emergency-time').textContent = `Triggered at: ${alert.created_at}`;
-
-        startBuzzerBeep();
-    }
-
-    function renderAlertSafe() {
-        emergencyStateView.classList.add('hidden');
-        normalStateView.classList.remove('hidden');
-
-        alertBadge.textContent = 'NORMAL';
-        alertBadge.className = 'badge';
-
-        stopBuzzerBeep();
-        
-        if (appState.cameraRunning) {
-            virtualBulb.className = 'virtual-bulb status-safe';
-            bulbStatusText.textContent = 'SYSTEM SECURE';
-            bulbStatusText.className = 'bulb-status-text';
-            
-            document.getElementById('system-status-badge').querySelector('.status-text').textContent = 'Camera Streaming';
-            document.getElementById('system-status-badge').querySelector('.pulse-dot').className = 'pulse-dot green';
-        } else {
-            virtualBulb.className = 'virtual-bulb status-warning';
-            bulbStatusText.textContent = 'CAMERA OFFLINE';
-            bulbStatusText.className = 'bulb-status-text warning';
-            
-            document.getElementById('system-status-badge').querySelector('.status-text').textContent = 'Camera Stopped';
-            document.getElementById('system-status-badge').querySelector('.pulse-dot').className = 'pulse-dot red';
-        }
-    }
-
-    dismissAlertBtn.addEventListener('click', async () => {
-        try {
-            stopBuzzerBeep();
-            renderAlertSafe();
-            
-            await fetch('/api/alerts/dismiss', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' }
-            });
-        } catch (err) {
-            console.error('Network error during dismiss:', err);
         }
     });
 
-    // Start Polling loop (every 1.5 seconds)
-    appState.pollingInterval = setInterval(checkActiveAlerts, 1500);
-    // Initial run
-    checkActiveAlerts();
-
-
-    // ==========================================================================
-    // Patient Registration and Registry Tab
-    // ==========================================================================
-    registerPatientForm.addEventListener('submit', async (e) => {
+    // ==========================================
+    // Form registry submission
+    // ==========================================
+    registerPatientForm?.addEventListener('submit', async (e) => {
         e.preventDefault();
         
         const payload = {
@@ -540,7 +509,8 @@ document.addEventListener('DOMContentLoaded', () => {
             medical_condition: document.getElementById('reg-condition').value.trim(),
             ear_threshold: parseFloat(document.getElementById('cal-ear-threshold')?.value || 0.22),
             baseline_ear: parseFloat(document.getElementById('cal-baseline-ear')?.value || 0.28),
-            pupil_distance: parseFloat(document.getElementById('cal-pupil-distance')?.value || 60.0)
+            pupil_distance: parseFloat(document.getElementById('cal-pupil-distance')?.value || 60.0),
+            mind_thoughts: document.getElementById('reg-mind-thoughts')?.value.trim() || 'Calm and resting.'
         };
 
         try {
@@ -552,46 +522,33 @@ document.addEventListener('DOMContentLoaded', () => {
             const data = await response.json();
             
             if (data.success) {
-                const banner = document.getElementById('registration-feedback');
-                banner.className = 'alert-box alert-success';
-                banner.querySelector('span').textContent = 'Patient successfully registered in database!';
-                
+                showToast("Patient Registered Successfully!", "success");
                 registerPatientForm.reset();
                 
-                // Hide calibration preview card
                 const preview = document.getElementById('calibration-results-preview');
-                if (preview) {
-                    preview.classList.add('hidden');
-                    document.getElementById('cal-ear-threshold').value = "0.22";
-                    document.getElementById('cal-baseline-ear').value = "0.28";
-                    document.getElementById('cal-pupil-distance').value = "60.0";
-                }
+                if (preview) preview.classList.add('d-none');
                 
                 loadPatientsList();
                 loadPatientSelect();
-
-                setTimeout(() => {
-                    banner.classList.add('hidden');
-                }, 3000);
             } else {
-                alert(`Error: ${data.message}`);
+                showToast(`Error: ${data.message}`, "danger");
             }
-        } catch (error) {
-            console.error('Error submitting patient registration:', error);
-            alert('Failed to connect to Flask API.');
+        } catch (err) {
+            showToast("Failed to connect to web server.", "danger");
         }
     });
 
+    // Load Patient lists
     async function loadPatientsList() {
+        if (!patientsTableBody) return;
         try {
-            patientsTableBody.innerHTML = '<tr><td colspan="5" class="text-center text-muted"><i class="fa-solid fa-spinner fa-spin"></i> Loading registered patients...</td></tr>';
+            patientsTableBody.innerHTML = '<tr><td colspan="5" class="py-4 text-center text-secondary"><i class="fa-solid fa-spinner fa-spin me-1"></i> Querying records...</td></tr>';
             
             const response = await fetch('/api/patients');
-            if (!response.ok) throw new Error('Failed to retrieve patients');
             const list = await response.json();
             
             if (list.length === 0) {
-                patientsTableBody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">No patients registered in CareBlink yet.</td></tr>';
+                patientsTableBody.innerHTML = '<tr><td colspan="5" class="py-4 text-center text-secondary">No patients registered.</td></tr>';
                 return;
             }
 
@@ -599,163 +556,382 @@ document.addEventListener('DOMContentLoaded', () => {
             list.forEach(p => {
                 const tr = document.createElement('tr');
                 tr.innerHTML = `
-                    <td><strong>${escapeHTML(p.patient_id)}</strong></td>
-                    <td>${escapeHTML(p.name)}</td>
-                    <td>${escapeHTML(String(p.age))}</td>
-                    <td><span class="badge">${escapeHTML(p.room_number)}</span></td>
-                    <td><span class="text-muted">${escapeHTML(p.medical_condition)}</span></td>
+                    <td class="px-4 py-3"><strong>${escapeHTML(p.patient_id)}</strong></td>
+                    <td class="px-4 py-3">${escapeHTML(p.name)}</td>
+                    <td class="px-4 py-3">${escapeHTML(String(p.age))}</td>
+                    <td class="px-4 py-3"><span class="badge bg-dark-soft text-white px-2 py-1">${escapeHTML(p.room_number)}</span></td>
+                    <td class="px-4 py-3 text-secondary">${escapeHTML(p.medical_condition)}</td>
                 `;
                 patientsTableBody.appendChild(tr);
             });
         } catch (err) {
-            console.error('Error fetching patients:', err);
-            patientsTableBody.innerHTML = '<tr><td colspan="5" class="text-center alert-text">Failed to connect to patient directory api.</td></tr>';
+            patientsTableBody.innerHTML = '<tr><td colspan="5" class="py-4 text-center text-danger">Registry connection failed.</td></tr>';
         }
     }
 
+    async function loadPatientSelect() {
+        const select = document.getElementById('monitor-patient-select');
+        if (!select) return;
+        try {
+            const response = await fetch('/api/patients');
+            const list = await response.json();
+            select.innerHTML = '';
+            list.forEach(p => {
+                const opt = document.createElement('option');
+                opt.value = p.patient_id;
+                opt.textContent = `${p.name} (${p.room_number})`;
+                select.appendChild(opt);
+            });
+        } catch (err) {
+            console.error(err);
+        }
+    }
 
-    // ==========================================================================
-    // Incident Logs / Alert History Tab
-    // ==========================================================================
-    refreshHistoryBtn.addEventListener('click', loadAlertHistory);
+    // ==========================================
+    // Incident Logs / Alert history lists
+    // ==========================================
+    refreshHistoryBtn?.addEventListener('click', loadAlertHistory);
 
     async function loadAlertHistory() {
+        if (!historyTableBody) return;
         try {
-            historyTableBody.innerHTML = '<tr><td colspan="7" class="text-center text-muted"><i class="fa-solid fa-spinner fa-spin"></i> Fetching recent alerts from MySQL...</td></tr>';
+            historyTableBody.innerHTML = '<tr><td colspan="7" class="py-4 text-center text-secondary"><i class="fa-solid fa-spinner fa-spin me-1"></i> Querying incidents...</td></tr>';
             
             const response = await fetch('/api/alerts/history');
-            if (!response.ok) throw new Error('History fetch error');
             const data = await response.json();
             
             if (data.length === 0) {
-                historyTableBody.innerHTML = '<tr><td colspan="7" class="text-center text-muted">No alarm history logs found.</td></tr>';
+                historyTableBody.innerHTML = '<tr><td colspan="7" class="py-4 text-center text-secondary">No incident logs archived.</td></tr>';
                 return;
             }
 
             historyTableBody.innerHTML = '';
             data.forEach(log => {
+                const badge = log.status === 'active' 
+                    ? '<span class="text-danger fw-bold"><i class="fa-solid fa-bell animate-pulse me-1"></i>Active</span>'
+                    : '<span class="text-success"><i class="fa-solid fa-circle-check me-1"></i>Resolved</span>';
+                
                 const tr = document.createElement('tr');
-                let statusBadge = '';
-                if (log.status === 'active') {
-                    statusBadge = '<span class="status-indicator active"><i class="fa-solid fa-bell fa-shake"></i> Active</span>';
-                } else {
-                    statusBadge = '<span class="status-indicator dismissed"><i class="fa-solid fa-check-double"></i> Dismissed</span>';
-                }
-
                 tr.innerHTML = `
-                    <td>${escapeHTML(log.created_at)}</td>
-                    <td><strong>${escapeHTML(log.patient_id)}</strong></td>
-                    <td>${escapeHTML(log.name)}</td>
-                    <td><span class="badge">${escapeHTML(log.room_number)}</span></td>
-                    <td>${escapeHTML(log.message)}</td>
-                    <td>${statusBadge}</td>
-                    <td>${escapeHTML(log.resolved_at)}</td>
+                    <td class="px-4 py-3 font-mono text-secondary small">${escapeHTML(log.created_at)}</td>
+                    <td class="px-4 py-3"><strong>${escapeHTML(log.patient_id)}</strong></td>
+                    <td class="px-4 py-3">${escapeHTML(log.name)}</td>
+                    <td class="px-4 py-3"><span class="badge bg-dark-soft text-white px-2 py-1">${escapeHTML(log.room_number)}</span></td>
+                    <td class="px-4 py-3 text-secondary small">${escapeHTML(log.message)}</td>
+                    <td class="px-4 py-3">${badge}</td>
+                    <td class="px-4 py-3 font-mono text-secondary small">${escapeHTML(log.resolved_at)}</td>
                 `;
                 historyTableBody.appendChild(tr);
             });
-        } catch (error) {
-            console.error('Error fetching history logs:', error);
-            historyTableBody.innerHTML = '<tr><td colspan="7" class="text-center alert-text">Failed to fetch alerts log history from server.</td></tr>';
-        }
-    }
-
-    async function loadPatientSelect() {
-        const selectEl = document.getElementById('monitor-patient-select');
-        if (!selectEl) return;
-        try {
-            const response = await fetch('/api/patients');
-            if (!response.ok) throw new Error('Failed to load patients');
-            const patients = await response.json();
-            
-            selectEl.innerHTML = '';
-            patients.forEach(p => {
-                const opt = document.createElement('option');
-                opt.value = p.patient_id;
-                opt.textContent = `${p.name} (${p.room_number})`;
-                selectEl.appendChild(opt);
-            });
         } catch (err) {
-            console.error('Error loading patient select:', err);
+            historyTableBody.innerHTML = '<tr><td colspan="7" class="py-4 text-center text-danger">Failed to retrieve logs database.</td></tr>';
         }
     }
 
+    // ==========================================
+    // Hospital records & video clips loaders
+    // ==========================================
     async function loadHospitalRecords() {
-        const hospTitle = document.getElementById('hosp-records-title');
-        const hospProfileName = document.getElementById('hosp-profile-name');
-        const hospProfileState = document.getElementById('hosp-profile-state');
-        const hospProfilePatientsCount = document.getElementById('hosp-profile-patients-count');
-        const hospProfileAlertsCount = document.getElementById('hosp-profile-alerts-count');
+        const hospName = document.getElementById('hosp-profile-name');
+        const hospState = document.getElementById('hosp-profile-state');
+        const hospPatientsCount = document.getElementById('hosp-profile-patients-count');
+        const hospAlertsCount = document.getElementById('hosp-profile-alerts-count');
         const hospPatientsTableBody = document.querySelector('#hosp-patients-table tbody');
         const hospVideosTableBody = document.querySelector('#hosp-videos-table tbody');
         
         try {
-            if (hospPatientsTableBody) hospPatientsTableBody.innerHTML = '<tr><td colspan="4" class="text-center text-muted"><i class="fa-solid fa-spinner fa-spin"></i> Loading...</td></tr>';
-            if (hospVideosTableBody) hospVideosTableBody.innerHTML = '<tr><td colspan="5" class="text-center text-muted"><i class="fa-solid fa-spinner fa-spin"></i> Loading...</td></tr>';
+            if (hospPatientsTableBody) hospPatientsTableBody.innerHTML = '<tr><td colspan="4" class="py-3 text-center text-secondary"><i class="fa-solid fa-spinner fa-spin"></i></td></tr>';
+            if (hospVideosTableBody) hospVideosTableBody.innerHTML = '<tr><td colspan="5" class="py-3 text-center text-secondary"><i class="fa-solid fa-spinner fa-spin"></i></td></tr>';
             
             const response = await fetch('/api/hospital/records');
-            if (!response.ok) throw new Error('Failed to load hospital records');
             const data = await response.json();
             
-            // Set header & profile details
-            if (hospTitle) hospTitle.textContent = `${data.hospital_name} - Records Archive`;
-            if (hospProfileName) hospProfileName.textContent = data.hospital_name;
-            if (hospProfileState) hospProfileState.textContent = data.state;
-            if (hospProfilePatientsCount) hospProfilePatientsCount.textContent = `${data.patients.length} Patients Registered`;
-            if (hospProfileAlertsCount) hospProfileAlertsCount.textContent = `${data.alerts.length} Incidents Logged`;
+            if (hospName) hospName.textContent = data.hospital_name;
+            if (hospState) hospState.textContent = data.state;
+            if (hospPatientsCount) hospPatientsCount.textContent = `${data.patients.length} Patients`;
+            if (hospAlertsCount) hospAlertsCount.textContent = `${data.alerts.length} Incidents`;
             
-            // Populate patients table
             if (hospPatientsTableBody) {
                 if (data.patients.length === 0) {
-                    hospPatientsTableBody.innerHTML = '<tr><td colspan="4" class="text-center text-muted">No patients registered for this hospital.</td></tr>';
+                    hospPatientsTableBody.innerHTML = '<tr><td colspan="4" class="py-3 text-center text-secondary">No patients registered.</td></tr>';
                 } else {
                     hospPatientsTableBody.innerHTML = '';
                     data.patients.forEach(p => {
                         const tr = document.createElement('tr');
                         tr.innerHTML = `
-                            <td><strong>${escapeHTML(p.patient_id)}</strong></td>
-                            <td>${escapeHTML(p.name)}</td>
-                            <td><span class="badge">${escapeHTML(p.room_number)}</span></td>
-                            <td><span class="text-muted">${escapeHTML(p.medical_condition)}</span></td>
+                            <td class="px-4 py-3"><strong>${escapeHTML(p.patient_id)}</strong></td>
+                            <td class="px-4 py-3">${escapeHTML(p.name)}</td>
+                            <td class="px-4 py-3"><span class="badge bg-dark-soft text-white px-2 py-1">${escapeHTML(p.room_number)}</span></td>
+                            <td class="px-4 py-3 text-secondary small">${escapeHTML(p.medical_condition)}</td>
                         `;
                         hospPatientsTableBody.appendChild(tr);
                     });
                 }
             }
-            
-            // Populate video and alert history table
+
             if (hospVideosTableBody) {
                 if (data.alerts.length === 0) {
-                    hospVideosTableBody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">No alerts or recorded clips found.</td></tr>';
+                    hospVideosTableBody.innerHTML = '<tr><td colspan="5" class="py-3 text-center text-secondary">No video telemetry clips saved.</td></tr>';
                 } else {
                     hospVideosTableBody.innerHTML = '';
                     data.alerts.forEach(a => {
+                        const videoLink = a.video_filename 
+                            ? `<a href="/all_records/${escapeHTML(a.video_filename)}" target="_blank" class="btn btn-dark-soft btn-sm text-accent"><i class="fa-solid fa-circle-play text-danger me-1"></i> Watch Video</a>`
+                            : `<span class="text-secondary small"><i class="fa-solid fa-video-slash me-1"></i> No Clip</span>`;
+                        
                         const tr = document.createElement('tr');
-                        
-                        let videoCell = '<span class="text-muted"><i class="fa-solid fa-video-slash"></i> No Clip</span>';
-                        if (a.video_filename) {
-                            videoCell = `
-                                <a href="/all_records/${escapeHTML(a.video_filename)}" target="_blank" class="action-btn btn-secondary btn-ripple" style="padding: 4px 10px; font-size: 0.75rem; border-radius: 6px;">
-                                    <i class="fa-solid fa-circle-play text-danger"></i> Watch Video
-                                </a>
-                            `;
-                        }
-                        
                         tr.innerHTML = `
-                            <td>${escapeHTML(a.created_at)}</td>
-                            <td><strong>${escapeHTML(a.patient_id)}</strong></td>
-                            <td>${escapeHTML(a.name)}</td>
-                            <td>${escapeHTML(a.message)}</td>
-                            <td>${videoCell}</td>
+                            <td class="px-4 py-3 font-mono text-secondary small">${escapeHTML(a.created_at)}</td>
+                            <td class="px-4 py-3"><strong>${escapeHTML(a.patient_id)}</strong></td>
+                            <td class="px-4 py-3">${escapeHTML(a.name)}</td>
+                            <td class="px-4 py-3 text-secondary small">${escapeHTML(a.message)}</td>
+                            <td class="px-4 py-3">${videoLink}</td>
                         `;
                         hospVideosTableBody.appendChild(tr);
                     });
                 }
             }
-            
         } catch (err) {
-            console.error('Error fetching hospital records:', err);
-            if (hospPatientsTableBody) hospPatientsTableBody.innerHTML = '<tr><td colspan="4" class="text-center alert-text">Failed to fetch patient data.</td></tr>';
-            if (hospVideosTableBody) hospVideosTableBody.innerHTML = '<tr><td colspan="5" class="text-center alert-text">Failed to fetch video telemetry clips.</td></tr>';
+            console.error('Records fetch error:', err);
+        }
+    }
+
+    // ==========================================
+    // Biometric Telemetry Chart (Chart.js)
+    // ==========================================
+    function initTelemetryChart() {
+        const canvas = document.getElementById('patient-telemetry-chart');
+        if (!canvas) return;
+        if (appState.telemetryChart) return; // already loaded
+        
+        const ctx = canvas.getContext('2d');
+        appState.telemetryChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: appState.chartLabels,
+                datasets: [{
+                    label: 'Eye Aspect Ratio (EAR)',
+                    data: appState.earHistory,
+                    borderColor: '#06b6d4',
+                    borderWidth: 2,
+                    fill: true,
+                    backgroundColor: 'rgba(6, 182, 212, 0.08)',
+                    tension: 0.35,
+                    pointRadius: 0
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false }
+                },
+                scales: {
+                    x: { display: false },
+                    y: {
+                        min: 0.0,
+                        max: 0.45,
+                        grid: { color: 'rgba(255,255,255,0.05)' },
+                        ticks: { color: '#94a3b8' }
+                    }
+                }
+            }
+        });
+    }
+
+    // ==========================================
+    // Calibration Modal controller
+    // ==========================================
+    const btnScan = document.getElementById('btn-scan-patient');
+    const scanModal = document.getElementById('eye-scan-modal');
+    const btnCancelScan = document.getElementById('btn-cancel-scan');
+    const btnApplyScan = document.getElementById('btn-apply-scan');
+    const scanImg = document.getElementById('scan-stream-img');
+    const scanProgress = document.getElementById('scan-progress-bar');
+    const scanStatus = document.getElementById('scan-status-text');
+    const scanActiveView = document.getElementById('scan-active-view');
+    const scanResultView = document.getElementById('scan-result-view');
+    
+    let calibrationController = null;
+    let cachedCalibrationData = null;
+
+    btnScan?.addEventListener('click', async () => {
+        scanActiveView.classList.remove('d-none');
+        scanResultView.classList.add('d-none');
+        scanProgress.style.width = '0%';
+        scanStatus.textContent = 'INITIALIZING CAMERA SCANNER...';
+        scanModal.classList.add('active');
+        addTerminalLog("[Biometrics] Spawning eye calibration modal.");
+        
+        scanImg.src = '/video_feed';
+        
+        let progress = 0;
+        let progInterval = setInterval(() => {
+            if (progress < 92) {
+                progress += 3.0;
+                scanProgress.style.width = progress + '%';
+                
+                let msg = 'ALIGNING PUPILS...';
+                if (progress > 30 && progress <= 60) msg = 'CALIBRATING baseline ear...';
+                else if (progress > 60 && progress <= 80) msg = 'DECODING brain waves...';
+                else if (progress > 80) msg = 'DECRYPTING thoughts...';
+                
+                scanStatus.textContent = `${msg} ${Math.round(progress)}%`;
+            }
+        }, 120);
+
+        calibrationController = new AbortController();
+        try {
+            const resp = await fetch('/api/camera/scan_calibration', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                signal: calibrationController.signal
+            });
+            clearInterval(progInterval);
+            const data = await resp.json();
+            
+            if (data.success) {
+                scanProgress.style.width = '100%';
+                scanStatus.textContent = 'SCAN COMPLETED SUCCESSFULLY!';
+                cachedCalibrationData = data;
+                
+                // Populate Results view
+                document.getElementById('scan-res-id').textContent = data.patient_id;
+                document.getElementById('scan-res-name').textContent = data.name;
+                document.getElementById('scan-res-age').textContent = data.age;
+                document.getElementById('scan-res-room').textContent = data.room_number;
+                document.getElementById('scan-res-condition').textContent = data.medical_condition;
+                document.getElementById('scan-res-mind-thoughts').textContent = data.mind_thoughts;
+                document.getElementById('scan-res-base-ear').textContent = Number(data.baseline_ear).toFixed(3);
+                document.getElementById('scan-res-pd-val').textContent = Number(data.pupil_distance).toFixed(1) + ' mm';
+                
+                setTimeout(() => {
+                    scanActiveView.classList.add('d-none');
+                    scanResultView.classList.remove('d-none');
+                }, 800);
+            } else {
+                scanStatus.textContent = `Error: ${data.message}`;
+            }
+        } catch (e) {
+            clearInterval(progInterval);
+            if (e.name === 'AbortError') {
+                scanStatus.textContent = 'Calibration cancelled.';
+            } else {
+                scanStatus.textContent = 'Webcam calibration server offline.';
+            }
+        }
+    });
+
+    btnApplyScan?.addEventListener('click', () => {
+        if (cachedCalibrationData) {
+            document.getElementById('reg-patient-id').value = cachedCalibrationData.patient_id;
+            document.getElementById('reg-name').value = cachedCalibrationData.name;
+            document.getElementById('reg-age').value = cachedCalibrationData.age;
+            document.getElementById('reg-room').value = cachedCalibrationData.room_number;
+            document.getElementById('reg-condition').value = cachedCalibrationData.medical_condition;
+            document.getElementById('reg-mind-thoughts').value = cachedCalibrationData.mind_thoughts;
+            
+            document.getElementById('cal-res-baseline').textContent = Number(cachedCalibrationData.baseline_ear).toFixed(3);
+            document.getElementById('cal-res-thresh').textContent = Number(cachedCalibrationData.ear_threshold).toFixed(3);
+            document.getElementById('cal-res-pd').textContent = Number(cachedCalibrationData.pupil_distance).toFixed(1) + ' mm';
+            
+            document.getElementById('cal-ear-threshold').value = cachedCalibrationData.ear_threshold;
+            document.getElementById('cal-baseline-ear').value = cachedCalibrationData.baseline_ear;
+            document.getElementById('cal-pupil-distance').value = cachedCalibrationData.pupil_distance;
+            document.getElementById('cal-mind-thoughts').value = cachedCalibrationData.mind_thoughts;
+            
+            document.getElementById('calibration-results-preview').classList.remove('d-none');
+        }
+        closeCalibration();
+    });
+
+    btnCancelScan?.addEventListener('click', () => {
+        if (calibrationController) calibrationController.abort();
+        closeCalibration();
+    });
+
+    function closeCalibration() {
+        scanModal.classList.remove('active');
+        scanImg.removeAttribute('src');
+    }
+
+    // ==========================================
+    // Data Export Operations (Excel & PDF)
+    // ==========================================
+    document.getElementById('export-patients-btn')?.addEventListener('click', () => {
+        exportTableToExcel('patients-table', 'CareBlink_Patients_Registry.xlsx');
+    });
+
+    document.getElementById('export-logs-btn')?.addEventListener('click', () => {
+        exportTableToExcel('history-table', 'CareBlink_Alert_Incident_Logs.xlsx');
+    });
+
+    function exportTableToExcel(tableId, filename) {
+        try {
+            const table = document.getElementById(tableId);
+            if (!table) return;
+            
+            const wb = XLSX.utils.table_to_book(table, { sheet: "Data Sheet" });
+            XLSX.writeFile(wb, filename);
+            showToast("Excel Export Completed!", "success");
+            addTerminalLog(`[Export] Generated spreadsheet file: ${filename}`);
+        } catch (e) {
+            console.error('Spreadsheet export failed:', e);
+            showToast("Spreadsheet Export Failed.", "danger");
+        }
+    }
+
+    // ==========================================
+    // System Terminal Logs (Admin Console)
+    // ==========================================
+    function addTerminalLog(msg) {
+        const timestamp = new Date().toLocaleTimeString();
+        const line = `[${timestamp}] ${msg}`;
+        appState.systemLogs.push(line);
+        if (appState.systemLogs.length > 40) appState.systemLogs.shift();
+        
+        const term = document.getElementById('admin-logs-terminal');
+        if (term) {
+            term.innerHTML = appState.systemLogs.map(l => `<div>${escapeHTML(l)}</div>`).join('');
+            term.scrollTop = term.scrollHeight;
+        }
+    }
+
+    async function loadAdminConsole() {
+        const adminDb = document.getElementById('admin-db-dialect');
+        const activeDialect = sidebarDbDialect?.textContent || 'SQLite (Auto)';
+        if (adminDb) adminDb.textContent = activeDialect;
+        
+        // Populate Admin Operators list
+        const opList = document.getElementById('admin-operators-list');
+        if (opList) {
+            opList.innerHTML = `
+                <div class="bg-dark-soft p-3 rounded-3 mb-2 text-start">
+                    <strong class="text-white d-block">St. Jude Medical Center</strong>
+                    <span class="text-secondary small d-block">Role: Primary Admin</span>
+                    <span class="badge bg-success-soft text-success px-2 py-1 rounded mt-2">Active operator</span>
+                </div>
+                <div class="bg-dark-soft p-3 rounded-3 text-start">
+                    <strong class="text-white d-block">Metro General Clinic</strong>
+                    <span class="text-secondary small d-block">Role: Doctor Staff</span>
+                    <span class="badge bg-dark-soft text-secondary px-2 py-1 rounded mt-2">Standby</span>
+                </div>
+            `;
+        }
+        addTerminalLog("[Admin Console] Loaded system environments & operator nodes.");
+    }
+
+    // ==========================================
+    // Utility Helpers
+    // ==========================================
+    function showToast(msg, category = 'success') {
+        const toastEl = document.getElementById('alert-toast');
+        const toastMsg = document.getElementById('toast-message');
+        if (toastEl && toastMsg) {
+            toastMsg.textContent = msg;
+            toastEl.className = `toast align-items-center text-white border-0 bg-${category}`;
+            const bsToast = new bootstrap.Toast(toastEl);
+            bsToast.show();
         }
     }
 
@@ -771,129 +947,9 @@ document.addEventListener('DOMContentLoaded', () => {
             }[tag] || tag)
         );
     }
-    // ==========================================================================
-    // Eye Calibration Scan Controller
-    // ==========================================================================
-    const btnScanPatient = document.getElementById('btn-scan-patient');
-    const eyeScanModal = document.getElementById('eye-scan-modal');
-    const btnCancelScan = document.getElementById('btn-cancel-scan');
-    const btnApplyScan = document.getElementById('btn-apply-scan');
-    const scanStreamImg = document.getElementById('scan-stream-img');
-    const scanProgressBar = document.getElementById('scan-progress-bar');
-    const scanStatusText = document.getElementById('scan-status-text');
-    
-    const scanActiveView = document.getElementById('scan-active-view');
-    const scanResultView = document.getElementById('scan-result-view');
-    
-    let scanController = null;
-    let lastScanData = null;
-    
-    if (btnScanPatient && eyeScanModal) {
-        btnScanPatient.addEventListener('click', async () => {
-            // Reset scan state
-            scanActiveView.classList.remove('hidden');
-            scanResultView.classList.add('hidden');
-            scanProgressBar.style.width = '0%';
-            scanStatusText.textContent = 'INITIALIZING WEBCAM SCANNER...';
-            eyeScanModal.classList.add('active');
-            
-            // Set stream source to active feed
-            scanStreamImg.src = '/video_feed';
-            
-            let progress = 0;
-            let progressInterval = setInterval(() => {
-                if (progress < 90) {
-                    progress += 2.5;
-                    scanProgressBar.style.width = progress + '%';
-                    scanStatusText.textContent = `ANALYZING EYE REFLECTION & GEOMETRY... ${Math.round(progress)}%`;
-                }
-            }, 100);
-            
-            scanController = new AbortController();
-            const signal = scanController.signal;
-            
-            try {
-                const response = await fetch('/api/camera/scan_calibration', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    signal: signal
-                });
-                
-                clearInterval(progressInterval);
-                const data = await response.json();
-                
-                if (data.success) {
-                    scanProgressBar.style.width = '100%';
-                    scanStatusText.textContent = 'BIOMETRIC SCAN COMPLETE!';
-                    
-                    lastScanData = data;
-                    
-                    // Show scanned details inside result view
-                    document.getElementById('scan-res-id').textContent = data.patient_id;
-                    document.getElementById('scan-res-name').textContent = data.name;
-                    document.getElementById('scan-res-age').textContent = data.age;
-                    document.getElementById('scan-res-room').textContent = data.room_number;
-                    document.getElementById('scan-res-condition').textContent = data.medical_condition;
-                    document.getElementById('scan-res-base-ear').textContent = data.baseline_ear.toFixed(3);
-                    document.getElementById('scan-res-pd-val').textContent = data.pupil_distance.toFixed(1) + ' mm';
-                    
-                    setTimeout(() => {
-                        scanActiveView.classList.add('hidden');
-                        scanResultView.classList.remove('hidden');
-                    }, 600);
-                } else {
-                    scanStatusText.textContent = `SCAN FAILED: ${data.message}`;
-                    scanProgressBar.style.width = '0%';
-                }
-            } catch (err) {
-                clearInterval(progressInterval);
-                if (err.name === 'AbortError') {
-                    scanStatusText.textContent = 'CALIBRATION CANCELLED.';
-                } else {
-                    scanStatusText.textContent = 'ERROR: Webcam server offline.';
-                    console.error('Calibration scan failed:', err);
-                }
-                scanProgressBar.style.width = '0%';
-            }
-        });
-        
-        if (btnApplyScan) {
-            btnApplyScan.addEventListener('click', () => {
-                if (lastScanData) {
-                    // Populate fields
-                    document.getElementById('reg-patient-id').value = lastScanData.patient_id;
-                    document.getElementById('reg-name').value = lastScanData.name;
-                    document.getElementById('reg-age').value = lastScanData.age;
-                    document.getElementById('reg-room').value = lastScanData.room_number;
-                    document.getElementById('reg-condition').value = lastScanData.medical_condition;
-                    
-                    // Update preview values
-                    document.getElementById('cal-res-baseline').textContent = lastScanData.baseline_ear.toFixed(3);
-                    document.getElementById('cal-res-thresh').textContent = lastScanData.ear_threshold.toFixed(3);
-                    document.getElementById('cal-res-pd').textContent = lastScanData.pupil_distance.toFixed(1) + ' mm';
-                    
-                    // Set hidden inputs
-                    document.getElementById('cal-ear-threshold').value = lastScanData.ear_threshold;
-                    document.getElementById('cal-baseline-ear').value = lastScanData.baseline_ear;
-                    document.getElementById('cal-pupil-distance').value = lastScanData.pupil_distance;
-                    
-                    // Show preview
-                    document.getElementById('calibration-results-preview').classList.remove('hidden');
-                }
-                closeScanModal();
-            });
-        }
-        
-        btnCancelScan.addEventListener('click', () => {
-            if (scanController) {
-                scanController.abort();
-            }
-            closeScanModal();
-        });
-        
-        function closeScanModal() {
-            eyeScanModal.classList.remove('active');
-            scanStreamImg.removeAttribute('src');
-        }
-    }
+
+    // Initial triggers
+    appState.pollingInterval = setInterval(checkActiveAlerts, 1500);
+    checkActiveAlerts();
+    loadPatientSelect();
 });

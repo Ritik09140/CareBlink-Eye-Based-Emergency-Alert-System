@@ -1,26 +1,54 @@
-# CareBlink – Smart Eye Blink Emergency Alert System
+# CareBlink – Smart Eye Blink Patient Emergency Alert System
 
-CareBlink is an assistive technology solution designed for non-verbal patients (e.g., individuals with Locked-in Syndrome or severe Motor Neurone Disease) who cannot speak but retain control over their eye movements. By combining **Computer Vision (OpenCV + MediaPipe)** with a **Flask web dashboard and MySQL**, CareBlink monitors eye blinks in real-time. If a patient blinks 5 times rapidly within 5 seconds, an emergency alert is triggered, stored in the database, and visual and auditory indicators are activated on the doctor's dashboard.
+CareBlink is an assistive biometric technology platform designed for non-verbal patients (e.g., individuals with Locked-in Syndrome or severe Motor Neurone Disease) who retain control over their eye movements. By combining **Computer Vision (OpenCV + MediaPipe)** with a resilient **Flask web service**, CareBlink monitors eye aspect ratios and gaze shifts in real time to dispatch automated emergency notifications and telemetry logs to ward dashboards.
 
 ---
 
-## 📂 Project Structure
+## 📂 Project Architecture
+
+The project has been refactored from a monolithic app into a clean production architecture separating views, controllers, data models, and helper services:
 
 ```
 CareBlink/
-├── app.py                   # Flask server backend (handles API and sessions)
-├── detector.py              # Python Computer Vision script (webcam monitor)
-├── db_setup.sql             # SQL script for MySQL database & schema creation
-├── requirements.txt         # Required Python packages
-├── .env                     # Configuration file for Database credentials
+├── app.py                      # Application launcher and config registers
+├── detector.py                 # Standalone Computer Vision webcam engine
+├── requirements.txt            # Python dependencies with version constraints
+├── Dockerfile                  # Container build directives
+├── docker-compose.yml          # Container multi-service orchestration definition
+├── Procfile                    # Deployment service command file
+├── runtime.txt                 # Target Python runtime specs
+├── deployment.md               # Cloud hosting setup procedures
+├── .env.example                # Sample environment configuration template
+├── config/
+│   └── config.py               # Environment loader and security setups
+├── database/
+│   └── connection.py           # SQL dialect mapper and SQLite fallback loop
+├── models/
+│   └── db_models.py            # Data entity mapping for Hospitals, Patients, and Alerts
+├── routes/
+│   ├── auth_routes.py          # Blueprints for Operator login/logout and registration
+│   ├── api_routes.py           # REST APIs for telemetry, calibration, and incidents
+│   └── view_routes.py          # Renders main templates and serves video clips
+├── services/
+│   ├── camera_service.py       # Decoupled CV camera loop and MediaPipe interface
+│   └── notification_service.py # Email and SMS alert dispatchers
+├── utils/
+│   ├── logger.py               # Custom log streams (app, camera, db, error)
+│   └── security.py             # Password verification, sanitization, and input validators
 ├── templates/
-│   ├── login.html           # Doctor Login screen (HTML layout)
-│   └── index.html           # Doctor Dashboard console (HTML structure)
-└── static/
-    ├── css/
-    │   └── style.css        # Premium custom styles (Glassmorphism & animations)
-    └── js/
-        └── dashboard.js     # Dashboard state manager, AJAX polling & synthesized buzzer
+│   ├── login.html              # Secure Bootstrap 5 login/register interface
+│   └── index.html              # Multi-Dashboard Operator Portal template
+├── static/
+│   ├── css/
+│   │   └── style.css           # Premium Dark Mode, glassmorphic layout rules
+│   └── js/
+│       └── dashboard.js        # Event listeners, Web Audio sirens, Chart.js, SheetJS, jsPDF
+├── logs/                       # Folder containing runtime logger outputs
+└── tests/
+    ├── test_db.py              # Test suite for DB dialects
+    ├── test_auth.py            # Test suite for auth credentials and filters
+    ├── test_api.py             # Test suite for JSON APIs
+    └── test_detector.py        # Offline eye tracking algorithms calculations test
 ```
 
 ---
@@ -28,107 +56,86 @@ CareBlink/
 ## 🛠️ Prerequisites & Installation
 
 ### 1. Python Environment
-Make sure you have **Python 3.8+** installed on your system. You can verify it by opening your terminal/command prompt and running:
+Ensure you have **Python 3.8+** installed:
 ```bash
 python --version
 ```
 
 ### 2. Install Project Dependencies
-In your project directory, open your terminal and install all required python libraries:
+Install all required packages:
 ```bash
 pip install -r requirements.txt
 ```
 
-### 3. Database Server Setup (MySQL)
-CareBlink has a dual-database design. It will try to connect to your local MySQL server. If it is not running, **it will automatically fall back to SQLite** (which creates a local database file `careblink.db` in the workspace), requiring **zero configuration** for demo presentations.
+### 3. Database Resilience
+CareBlink features a dual-database driver:
+- It automatically detects and connects to a local MySQL instance based on your `.env` settings.
+- If MySQL is unavailable, it **automatically falls back to SQLite** (`careblink.db`), creating the database and seeding tables with zero config.
 
-To set up MySQL manually:
-1. Open your MySQL command-line client or phpMyAdmin.
-2. Open and run the `db_setup.sql` script to create the database schema:
-   ```bash
-   mysql -u root -p < db_setup.sql
-   ```
-3. (Optional) Adjust your database login details (host, user, password) inside the `.env` file:
-   ```env
-   DB_HOST=localhost
-   DB_USER=root
-   DB_PASSWORD=your_mysql_password
-   DB_NAME=careblink
-   ```
+To set up MySQL manually, verify your `.env` contains:
+```env
+DB_HOST=localhost
+DB_USER=root
+DB_PASSWORD=your_mysql_password
+DB_NAME=careblink
+```
 
 ---
 
 ## 🚀 Running the Project
 
-### Step 1: Start the Flask Web App
-Run the Flask server:
+### Step 1: Launch the Flask Server
 ```bash
 python app.py
 ```
-Open your web browser and go to: **`http://localhost:5000`**
-- You will be redirected to the Login Screen.
-- Use the demo doctor credentials:
-  - **Username:** `doctor`
-  - **Password:** `password123`
+Open **`http://127.0.0.1:5000`** in your browser.
+Log in with the default operator credentials:
+- **Mobile Number:** `1234567890` (or `doctor`)
+- **Password:** `password123`
 
-### Step 2: Start the Computer Vision Detector Script
-In a *separate* terminal window, launch the eye blink tracker script:
-```bash
-python detector.py
-```
-- A prompt will ask you to enter a **Patient ID**. Press Enter to use the default profile (`PT-2045` for Arthur Dent) or enter another ID like `PT-3091`.
-- A camera window will open showing your webcam feed.
-- Center your face in the feed.
+### Step 2: Triggering Eye Calibration
+1. Navigate to the **Patients Registry** tab.
+2. Click **Scan Eyes & Auto-Fill**.
+3. Look straight at your camera. The system will perform an automated 3.5-second scan to calculate your **baseline EAR** and **Pupil Distance** parameters.
+4. Click **Apply & Close** to auto-fill the registry form.
+5. Click **Register Patient** to commit the patient profile.
 
-### Step 3: Trigger an Emergency Alert
-1. Look at the camera window.
-2. Blink **5 times quickly (within 5 seconds)**.
-3. Observe the output in the camera terminal and on the frame HUD. An indicator will flash **`!!! EMERGENCY ALERT !!!`**.
-4. Now check the Flask Web Dashboard in your browser. It will immediately:
-   - Glow a **pulsing bright red** virtual bulb.
-   - Play a repeating medical alarm buzzer (beeping sound).
-   - Display the patient details, time, and room number.
-5. Click **"Dismiss & Reset Alarm"** on the dashboard. The buzzer will stop, the virtual bulb will return to solid green, and the incident will be logged in the database.
+### Step 3: Simulating Emergency Signals
+1. Select the registered patient from the dropdown on the **Live Monitor** tab and click **Start**.
+2. Blink **5 times rapidly within 5 seconds**.
+3. The video stream will outline a red **`!!! EMERGENCY ALERT !!!`** banner and record a 5-second telemetry clip.
+4. The dashboard will trigger:
+   - A strobing **Red Virtual Bulb**.
+   - An active wailing **Emergency Siren** (Web Audio API).
+   - An **Emergency Toast Notification**.
+   - Email/SMS notifications to shift physicians.
+5. Click **Dismiss Alarm** to reset the system.
 
 ---
 
-## 📐 How It Works: Step-by-Step
+## 📊 Feature Dashboards
 
-### 1. Eye Aspect Ratio (EAR) Algorithm
-The system utilizes **MediaPipe Face Mesh** to locate 468 3D landmarks on the patient's face. For the eyes, specific landmark coordinate indices are extracted:
-* **Left Eye horizontal corners:** 33, 133
-* **Left Eye vertical edges:** (160, 144), (159, 145), (158, 153)
+The portal provides segmented dashboard consoles accessible from the sidebar:
+- **Live Monitor Dashboard:** Visual telemetry feeds, neural thought decoder (translates blink counts to message intents), and emergency panels.
+- **Patients Registry:** Database management console with eye calibration scanner and Excel spreadsheets exporting tools.
+- **Alert Logs:** Incidents history tracker equipped with filterable tables and Excel export capabilities.
+- **Hospital Records:** Segregated data directories by facility showcasing saved **Video Telemetry Clips**.
+- **Doctor Portal:** Configures physicians shift contact details and sensitivity sliders for the OpenCV calibration.
+- **Patient Telemetry:** Displays EAR tracking vectors in real time on Chart.js line graphs.
+- **Emergency Siren HUD:** High-visibility layout meant for nurse station terminals featuring flashing warning indicators.
+- **Admin Console:** Terminal logging viewer and dialect monitoring parameters.
 
-To calculate whether an eye is open or closed, the **Eye Aspect Ratio (EAR)** is computed:
+---
 
-$$\text{EAR} = \frac{\|p_2 - p_6\| + \|p_3 - p_5\|}{2 \cdot \|p_1 - p_4\|}$$
+## 🧪 Verification & Automated Testing
 
-Where:
-* $p_2, p_3, p_5, p_6$ represent vertical coordinate pairs.
-* $p_1, p_4$ represent the horizontal outer and inner corners.
-
-When the eyes are open, the EAR values hover around **0.25 to 0.35**. When the eyes are closed, the EAR value drops rapidly to below **0.20**.
-
-### 2. Time-Window Blink Counting
-* **State Machine:** When the average EAR of both eyes drops below the threshold (`0.22`), the detector starts counting frames. If it stays closed for at least 2 frames and then opens (EAR rises above threshold), a blink is registered.
-* **5 in 5 Rule:** The epoch of each blink is appended to a list. On every frame, the list is cleaned by keeping only blinks that happened in the last 5.0 seconds.
-* If the length of the list reaches 5:
-  - An emergency is triggered.
-  - The script makes an HTTP `POST` request to the web application at `/api/alerts`.
-  - A 10-second cooldown is enforced to prevent spamming.
-
-### 3. Alert Propagation to Doctor's Dashboard
-```
-[Webcam & OpenCV] ──► [MediaPipe Face Mesh] ──► [Compute EAR]
-                                                      │ (5 blinks / 5s)
-                                                      ▼
-[MySQL Log] ◄─── [Flask REST API (app.py)] ◄─── [HTTP POST Request]
-                       │
-                       ▼ (AJAX Polling /api/alerts/active)
-[Browser Dashboard] ───► [Glow Bulb Red & Synthesize Web Audio Alarm]
+A dedicated test suite verifies app integrity before committing changes:
+```bash
+python -m unittest discover -s tests -p "test_*.py"
 ```
 
-* **Backend Handling:** The Flask endpoint `/api/alerts` accepts the POST request, verifies the patient ID in the database, and inserts a new alert record with the status `active`.
-* **Frontend Polling:** The doctor's dashboard (`dashboard.js`) queries the `/api/alerts/active` endpoint every 1.5 seconds.
-* **Audio Warning Synthesizer:** When an active alarm payload is received, the frontend uses the browser's built-in **Web Audio API** to generate double-beeps of 980 Hz synthetically, avoiding the need for audio files.
-* **Dismissal:** When the doctor clicks "Dismiss", a request goes to `/api/alerts/dismiss` setting the alert status to `dismissed` and recording the resolution timestamp.
+---
+
+## 🚢 Deployment Guide
+
+Refer to [deployment.md](file:///z:/CareBlink%20%E2%80%93%20Smart%20Eye-Based%20Patient%20Emergency%20Alert%20System/deployment.md) for step-by-step guidance on running CareBlink inside **Docker Compose** or deploying to cloud platforms like **Render**, **Railway**, or **PythonAnywhere**.
